@@ -1,0 +1,151 @@
+--:root {
+  --brown: #2f2e2a;
+  --off-white: #fdf7e9;
+}
+
+body {
+  background: #454545;
+  background: linear-gradient(
+    90deg,
+    rgba(69, 69, 69, 1) 0%,
+    rgba(43, 43, 43, 1) 100%
+  );
+}
+.wrapper {
+  display: grid;
+  grid-template-columns: 800px 150px;
+  gap: 50px;
+  position: relative;
+  left: 5vw;
+  top: 5vh;
+}
+
+.sampler-wrapper {
+  position: relative;
+}
+
+.sampler {
+  display: grid;
+  padding: 5px;
+  background-color: grey;
+  width: 800px;
+  height: 400px;
+  position: relative;
+}
+
+.commands {
+  display: inline flex;
+  padding: 5px;
+  background-color: grey;
+  width: 800px;
+  height: 50px;
+  position: relative;
+  top: 30px;
+}
+
+.effects {
+  display: inline;
+  padding: 10px;
+  background-color: grey;
+   width: fit-content;
+  height: 490px;
+  position: relative;
+}
+
+.old-button {
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #222;
+  padding: 5px 20px;
+  box-shadow: 5px 5px black;
+  transition-property: transform, box-shadow, outline-offset;
+  transition: 100ms ease-in;
+  color: white;
+}
+.old-button:hover {
+  cursor: pointer;
+}
+.old-button:focus-visible {
+  outline-offset: 12px;
+  outline: 2px dotted black;
+}
+.old-button:active {
+  box-shadow: 2px 2px black;
+  transform: scale(0.99);
+}
+
+.command-buttons {
+  display: inline-flex;
+  gap: 10px;
+  margin: 1%;
+}
+
+#waveform {
+  background: #222;
+  min-height: 100px;
+  max-height: 250px;
+}
+
+.border-shadow {
+  border: solid black 5px;
+  box-shadow: 10px 10px 0px black;
+}
+
+.slider-eq {
+  -webkit-appearance: none;
+  width: 9.5%; /* Full-width */
+  background: transparent; /* Grey background */
+  outline: none; /* Remove outline */
+  opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
+  transition: opacity 0.2s;
+  color: black;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  cursor: pointer;
+  
+}
+
+.slider-eq::-webkit-slider-runnable-track {
+  background: grey;
+  width: 1px;
+  height: 100%;
+  align-items: flex-end; 
+  justify-content: flex-end;
+}
+
+.slider-eq::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 3px solid white;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  margin-left: -12px;
+
+}
+
+.sliders-wrapper {
+  background-color: #222;
+}
+
+.loop-buttons{
+  display: flex; gap: 10px;
+  height: 30px;
+}
+
+.loop-label{
+  margin: 15px;;
+  padding: 5px;
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #222;
+  color: white;
+}
