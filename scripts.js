@@ -4,6 +4,7 @@
 
 const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const audioContext = new AudioContext();
+var sampleRate = audioContext.sampleRate;
 
 let wavesurfer;
 
@@ -274,14 +275,14 @@ function initCommandsButtons() {
     .setAttribute("onclick", "loopController()");
 
   document.getElementById("x2-button").addEventListener("click", () => {
-    loopDurationSeconds *= 2; 
+    loopDurationSeconds *= 2;
     looping = false;
     regions.clearRegions();
     loopController();
   });
 
   document.getElementById("d2-button").addEventListener("click", () => {
-    loopDurationSeconds /= 2; 
+    loopDurationSeconds /= 2;
     looping = false;
     regions.clearRegions();
     loopController();
