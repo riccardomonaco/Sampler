@@ -159,7 +159,9 @@ function createEqualizer() {
     slider.max = 40;
     slider.value = 0;
     slider.step = 0.1;
-    slider.label = "ciao";
+    slider.addEventListener("dblclick", (event) => {
+      slider.value=0;
+     })
     slidersContainer.appendChild(slider);
   });
   grid.appendChild(slidersContainer);
@@ -207,7 +209,7 @@ function initWaveSurfer() {
     height: 250,
   });
 
-  wavesurfer.load("audio/audio.mp3");
+  wavesurfer.load("../assets/audio/audio.mp3");
 
   wavesurfer.on("interaction", () => {
     wavesurfer.playPause();
