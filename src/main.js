@@ -2,9 +2,8 @@
  * IMPORTS
  *********************************/
 
-import WaveSurfer from "wavesurfer.js";
-import RegionsPlugin from "../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
-import { createPageDefault } from "./ui/ui.js";
+import createPageDefault from "./ui/ui.js";
+import AudioPlayer from "./audio/audioPlayer.js";
 
 /*********************************
  * MODEL
@@ -15,8 +14,8 @@ const audioContext = new AudioContext();
 var sampleRate = audioContext.sampleRate;
 
 let wavesurfer;
+let audioPlayer;
 
-let regions = RegionsPlugin.create();
 let loopRegion = null;
 let looping = false;
 let loopDurationSeconds = 2;
@@ -32,15 +31,13 @@ const isPlaying = false;
  *********************************/
 function initSampler() {
   createPageDefault();
-  initWaveSurfer();
-  initCommandsButtons();
 }
 
 /**
  *
  *
  */
-function initWaveSurfer() {
+/* function initWaveSurfer() {
   wavesurfer = WaveSurfer.create({
     container: "#waveform",
     waveColor: "#ccc",
@@ -54,7 +51,7 @@ function initWaveSurfer() {
 
   wavesurfer.on("interaction", () => {
     wavesurfer.playPause();
-  });
+  }); */
 
 /*
   wavesurfer.once("play", () => {
@@ -125,7 +122,7 @@ function initWaveSurfer() {
       });
     }
   }); */
-}
+//}
 
 /**
  *
@@ -182,4 +179,7 @@ function loopController() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", initSampler());
+document.addEventListener("DOMContentLoaded", async () => {
+  await initSampler();
+  audioPlayer = new AudioPlayer();
+});

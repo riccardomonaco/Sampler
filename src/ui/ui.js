@@ -154,7 +154,7 @@ function createEqualizerGrid() {
  *
  *
  */
-export function createPageDefault() {
+export default function createPageDefault() {
   const wrapper = document.createElement("div");
   wrapper.classList.add("wrapper");
 
