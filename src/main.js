@@ -1,200 +1,40 @@
 /*********************************
+ * IMPORTS
+ *********************************/
+
+import WaveSurfer from "wavesurfer.js";
+import RegionsPlugin from "../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
+import { createPageDefault } from "./ui/ui.js";
+
+/*********************************
  * MODEL
  *********************************/
 
-const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+export const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const audioContext = new AudioContext();
 var sampleRate = audioContext.sampleRate;
 
 let wavesurfer;
 
-let regions = null;
+let regions = RegionsPlugin.create();
 let loopRegion = null;
 let looping = false;
 let loopDurationSeconds = 2;
 
 const isPlaying = false;
 
-const filters = eqBands.map((band) => {
-  const filter = audioContext.createBiquadFilter();
-  filter.type =
-    band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
-  filter.gain.value = Math.random() * 40 - 20;
-  filter.Q.value = 1; // resonance
-  filter.frequency.value = band; // the cut-off frequency
-  return filter;
-});
-
 /*********************************
  * VIEW
  *********************************/
 
-/**
- *
- *
- * @return {*}
- */
-function createSampler() {
-  const samplerMain = document.createElement("div");
-  samplerMain.classList.add("sampler-wrapper");
-
-  const sampler = document.createElement("div");
-  sampler.classList.add("sampler");
-  sampler.classList.add("border-shadow");
-  sampler.appendChild(createWaveWrapper());
-  sampler.appendChild(createEqualizerGrid().appendChild(createEqualizer()));
-
-  const commands = document.createElement("div");
-  commands.classList.add("commands");
-  commands.classList.add("border-shadow");
-  commands.appendChild(createCommandsButtons());
-
-  samplerMain.appendChild(sampler);
-  samplerMain.appendChild(commands);
-  return samplerMain;
-}
-
-/**
- *
- *
- * @return {*}
- */
-function createEffects() {
-  //MAIN SIDE WRAPPER
-  const effects = document.createElement("div");
-  effects.classList.add("effects");
-  effects.classList.add("border-shadow");
-
-  //LOOP CONTROL WRAPPER
-  const loopButtons = document.createElement("div");
-  loopButtons.classList.add("loop-buttons");
-
-  const d2Buttons = document.createElement("div");
-  d2Buttons.classList.add("old-button");
-  d2Buttons.textContent = "◀";
-  d2Buttons.setAttribute("id", "d2-button");
-
-  const loopButton = document.createElement("div");
-  loopButton.classList.add("old-button");
-  loopButton.textContent = "↻";
-  loopButton.setAttribute("id", "loop-button");
-
-  const x2Button = document.createElement("div");
-  x2Button.classList.add("old-button");
-  x2Button.textContent = "▶";
-  x2Button.setAttribute("id", "x2-button");
-
-  loopButtons.appendChild(d2Buttons);
-  loopButtons.appendChild(loopButton);
-  loopButtons.appendChild(x2Button);
-
-  const loopLabel = document.createElement("div");
-  loopLabel.classList.add("loop-label");
-  loopLabel.textContent = "LOOP CONTROLS";
-
-  //EFFECTS WRAPPER
-
-  effects.appendChild(loopButtons);
-  effects.appendChild(loopLabel);
-
-  return effects;
-}
-
-/**
- *
- *
- * @return {*}
- */
-function createCommandsButtons() {
-  const commandButtons = document.createElement("div");
-  commandButtons.classList.add("command-buttons");
-
-  const playButton = document.createElement("div");
-  playButton.classList.add("old-button");
-  playButton.textContent = "▶︎";
-  playButton.setAttribute("id", "play-button");
-
-  const pauseButton = document.createElement("div");
-  pauseButton.classList.add("old-button");
-  pauseButton.textContent = "||";
-  pauseButton.setAttribute("id", "pause-button");
-
-  const stopButton = document.createElement("div");
-  stopButton.classList.add("old-button");
-  stopButton.textContent = "◼";
-  stopButton.setAttribute("id", "stop-button");
-
-  commandButtons.appendChild(playButton);
-  commandButtons.appendChild(pauseButton);
-  commandButtons.appendChild(stopButton);
-
-  return commandButtons;
-}
-
-/**
- *
- *
- * @return {*}
- */
-function createWaveWrapper() {
-  waveContainer = document.createElement("div");
-  waveContainer.setAttribute("id", "waveform");
-  return waveContainer;
-}
-
-/**
- *
- *
- * @return {*}
- */
-function createEqualizer() {
-  const grid = createEqualizerGrid();
-  slidersContainer = document.createElement("div");
-  slidersContainer.classList.add("sliders-wrapper");
-  const sliders = eqBands.map((e) => {
-    const slider = document.createElement("input");
-    slider.classList.add("slider-eq");
-    slider.type = "range";
-    slider.min = -40;
-    slider.max = 40;
-    slider.value = 0;
-    slider.step = 0.1;
-    slider.addEventListener("dblclick", (event) => {
-      slider.value=0;
-     })
-    slidersContainer.appendChild(slider);
-  });
-  grid.appendChild(slidersContainer);
-  return grid;
-}
-
-/**
- *
- *
- * @return {*}
- */
-function createEqualizerGrid() {
-  slidersGrid = document.createElement("div");
-  slidersGrid.classList.add("eq-grid");
-  return slidersGrid;
-}
-
-function createPage() {
-  const wrapper = document.createElement("div");
-  wrapper.classList.add("wrapper");
-
-  wrapper.appendChild(createSampler());
-  wrapper.appendChild(createEffects());
-
-  root.appendChild(wrapper);
-
-  initWaveSurfer();
-  initCommandsButtons();
-}
-
 /*********************************
  * CONTROLLER
  *********************************/
+function initSampler() {
+  createPageDefault();
+  initWaveSurfer();
+  initCommandsButtons();
+}
 
 /**
  *
@@ -207,6 +47,7 @@ function initWaveSurfer() {
     progressColor: "#2196f3",
     cursorColor: "#333",
     height: 250,
+    plugin: [regions],
   });
 
   wavesurfer.load("../assets/audio/audio.mp3");
@@ -215,15 +56,16 @@ function initWaveSurfer() {
     wavesurfer.playPause();
   });
 
+/*
   wavesurfer.once("play", () => {
-    // Create Web Audio context
-    const audioContext = new AudioContext();
-
-    // Create a biquad filter for each band
-    const filters = eqBands.map((band) => {
+     const filters = eqBands.map((band) => {
       const filter = audioContext.createBiquadFilter();
       filter.type =
-        band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
+        band <= 32
+          ? "lowavesurferhelf"
+          : band >= 16000
+          ? "highshelf"
+          : "peaking";
       filter.gain.value = Math.random() * 40 - 20;
       filter.Q.value = 1; // resonance
       filter.frequency.value = band; // the cut-off frequency
@@ -252,7 +94,37 @@ function initWaveSurfer() {
     });
   });
 
-  regions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
+  wavesurfer.on("decode", () => {
+    let loop = true;
+
+    {
+      let activeRegion = null;
+      regions.on("region-in", (region) => {
+        console.log("region-in", region);
+        activeRegion = region;
+      });
+      regions.on("region-out", (region) => {
+        console.log("region-out", region);
+        if (activeRegion === region) {
+          if (loop) {
+            region.play();
+          } else {
+            activeRegion = null;
+          }
+        }
+      });
+      regions.on("region-clicked", (region, e) => {
+        e.stopPropagation(); // prevent triggering a click on the waveform
+        activeRegion = region;
+        region.play(true);
+        region.setOptions({ color: randomColor() });
+      });
+      // Reset the active region when the user clicks anywhere in the waveform
+      wavesurfer.on("interaction", () => {
+        activeRegion = null;
+      });
+    }
+  }); */
 }
 
 /**
@@ -260,21 +132,21 @@ function initWaveSurfer() {
  *
  */
 function initCommandsButtons() {
-  document
-    .getElementById("play-button")
-    .setAttribute("onclick", "wavesurfer.play()");
+  document.getElementById("play-button").addEventListener("click", () => {
+    wavesurfer.play();
+  });
 
-  document
-    .getElementById("pause-button")
-    .setAttribute("onclick", "wavesurfer.pause()");
+  document.getElementById("pause-button").addEventListener("click", () => {
+    wavesurfer.pause();
+  });
 
-  document
-    .getElementById("stop-button")
-    .setAttribute("onclick", "wavesurfer.stop()");
+  document.getElementById("stop-button").addEventListener("click", () => {
+    wavesurfer.stop();
+  });
 
-  document
-    .getElementById("loop-button")
-    .setAttribute("onclick", "loopController()");
+  document.getElementById("loop-button").addEventListener("click", () => {
+    loopController();
+  });
 
   document.getElementById("x2-button").addEventListener("click", () => {
     loopDurationSeconds *= 2;
@@ -310,4 +182,4 @@ function loopController() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", createPage());
+document.addEventListener("DOMContentLoaded", initSampler());
