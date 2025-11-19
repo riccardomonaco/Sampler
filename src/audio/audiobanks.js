@@ -1,1 +1,2 @@
-export let breakbeat1 =  "../../assets/audio/audio.mp3";
+export let breakbeat =  "../../assets/audio/breakbeat.mp3";
+export let lofi =  "../../assets/audio/breakbeat.wav";

@@ -1,5 +1,8 @@
 {
   "dependencies": {
+    "aubiojs": "^0.2.1",
+    "bpm-detective": "^2.0.5",
+    "music-tempo": "^1.0.3",
     "wavesurfer.js": "^7.11.1"
   },
   "devDependencies": {

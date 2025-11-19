@@ -1,5 +1,4 @@
 import { eqBands } from "../audio/audioglobal.js";
-import { audioplayer } from "../main.js";
 
 /**
  *
@@ -122,6 +121,9 @@ function createWaveWrapper() {
 export default function createEqualizer() {
   const slidersContainer = document.getElementById("sliders-wrapper");
   const sliders = eqBands.map((e) => {
+    const eqBand = document.createElement("div");
+    eqBand.classList.add("eq-band");
+
     const slider = document.createElement("input");
     slider.classList.add("slider-eq");
     slider.type = "range";
@@ -131,8 +133,16 @@ export default function createEqualizer() {
     slider.step = 0.1;
     slider.addEventListener("dblclick", (event) => {
       slider.value = 0;
+      slider.dispatchEvent(new Event("input"));
     });
-    slidersContainer.appendChild(slider);
+
+    const eqLabel = document.createElement("div");
+    eqBand.classList.add("eq-label");
+    eqLabel.textContent = formatFreqLabel(e);
+
+    eqBand.appendChild(slider);
+    eqBand.appendChild(eqLabel);
+    slidersContainer.appendChild(eqBand);
   });
   return slidersContainer;
 }
@@ -152,7 +162,7 @@ function createEqualizerGrid() {
  *
  *
  */
-export  function createPageDefault() {
+export function createPageDefault() {
   const wrapper = document.createElement("div");
   wrapper.classList.add("wrapper");
 
@@ -160,4 +170,11 @@ export  function createPageDefault() {
   wrapper.appendChild(createEffects());
 
   root.appendChild(wrapper);
+}
+
+function formatFreqLabel(freq) {
+  if (freq >= 1000) {
+    return `${freq / 1000}kHz`;
+  }
+  return `${freq} Hz`;
 }

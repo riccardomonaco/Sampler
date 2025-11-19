@@ -1,7 +1,8 @@
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
+
 import { eqBands } from "./audioglobal.js";
-import { breakbeat1 } from "./audiobanks.js";
+import { breakbeat, lofi } from "./audiobanks.js";
 
 export default class AudioPlayer {
   constructor() {
@@ -21,6 +22,8 @@ export default class AudioPlayer {
     this.mediaNode = null;
     this.eqInitialized = false;
 
+    this.bpm = 0;
+
     this.initWaveSurfer();
     this.setupEventListeners();
   }
@@ -29,22 +32,23 @@ export default class AudioPlayer {
     this.wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#ccc",
-      progressColor: "#2196f3",
+      progressColor: "#3d7fb6ff",
       cursorColor: "#333",
       height: 250,
       plugins: [this.regions],
+      audioContext: this.audioContext,
     });
-
-    this.initEqualizer();
 
     this.wavesurfer.on("decode", () => {
       // Aspetta un frame per essere sicuri che tutto sia pronto
       requestAnimationFrame(() => this.initEqualizer());
     });
     // Event listeners di WaveSurfer
-    this.wavesurfer.on("ready", () => {
+    this.wavesurfer.on("ready", async () => {
       console.log("WaveSurfer ready");
       this.initEqualizer();
+      this.bpm = await this.detectBPM();
+      document.getElementById("bpm-led").textContent = this.bpm + " BPM";
     });
 
     this.wavesurfer.on("seek", (progress) => {
@@ -69,13 +73,22 @@ export default class AudioPlayer {
     });
   }
 
+  initAudio() {
+    if (!this.audioContext) {
+      this.audioContext = new AudioContext();
+    }
+
+    if (this.audioContext.state === "suspended") {
+      return this.audioContext.resume();
+    }
+    this.initEqualizer();
+    return Promise.resolve();
+  }
+
   setupEventListeners() {
     document
       .getElementById("play-button")
       .addEventListener("click", async () => {
-        if (audioplayer.context?.state === "suspended") {
-          await this.audioContext.resume();
-        }
         this.wavesurfer.play();
       });
 
@@ -92,26 +105,41 @@ export default class AudioPlayer {
     document.getElementById("x2-button").addEventListener("click", () => {});
 
     document.getElementById("d2-button").addEventListener("click", () => {});
+
+    document.getElementById("bpm-led").addEventListener("click", () => {
+      bpm = this.detectBPM();
+      document.getElementById("bpm-led").textContent = Math.round(bpm) + "BPM";
+    });
+
+    const dropArea = document.getElementById("waveform");
+
+    dropArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropArea.classList.add("dragover");
+    });
+
+    dropArea.addEventListener("dragleave", () => {
+      dropArea.classList.remove("dragover");
+    });
+
+    dropArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropArea.classList.remove("dragover");
+
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+
+      const objectUrl = URL.createObjectURL(file);
+      this.loadAudioFile(objectUrl);
+    });
   }
 
   async loadAudioFile(file) {
     if (!file) return;
 
     try {
-      // Carica il file in ArrayBuffer
-      //const arrayBuffer = await file.arrayBuffer();
-
-      // Decodifica con Web Audio API
-      //this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-
-      // Carica la waveform in WaveSurfer
-      console.log(file);
-      this.wavesurfer.load(breakbeat1);
-
-      console.log("Audio caricato con successo");
-    } catch (error) {
-      console.error("Errore nel caricamento audio:", error);
-    }
+      await this.wavesurfer.load(file);
+    } catch (error) {}
   }
 
   play() {
@@ -207,15 +235,7 @@ export default class AudioPlayer {
   }
 
   handleInteraction() {
-    // Gestisci interazioni con la waveform
-    console.log("Interazione con la waveform");
-
-    this.wavesurfer.playPause();
-
-    if (this.isEmpty) {
-      this.loadAudioFile("CIAO");
-      this.isEmpty = false;
-    }
+    this.wavesurfer.play();
   }
 
   addRegion() {
@@ -325,7 +345,6 @@ export default class AudioPlayer {
 
   connectSliders() {
     const sliders = document.querySelectorAll(".slider-eq");
-    console.log(sliders);
 
     sliders.forEach((slider, i) => {
       if (this.filters[i]) {
@@ -337,7 +356,16 @@ export default class AudioPlayer {
           this.filters[i].gain.value = e.target.value;
           console.log(`EQ Band ${eqBands[i]}Hz: ${e.target.value}dB`);
         };
+
+        slider.oninput = (e) => {
+          this.filters[i].gain.value = e.target.value;
+          console.log(`EQ Band ${eqBands[i]}Hz: ${e.target.value}dB`);
+        };
       }
     });
+  }
+
+  detectBPM() {
+    return 175;
   }
 }

@@ -1,21 +1,29 @@
-import AudioPlayer from "./audio/audioplayer.js";
 import createEqualizer from "./ui/ui.js";
-import { eqBands } from "./audio/audioglobal.js";
+import AudioPlayer from "./audio/audioplayer.js"
 
-export const audioplayer = new AudioPlayer();
+var audioplayer;
 
 function initSampler() {
   createEqualizer();
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  console.log("Audio context state:", audioplayer.context?.state);
-  console.log("Audio element ready:", audioplayer.audio?.readyState);
-  window.addEventListener("unhandledrejection", (event) => {
-    if (event.reason?.message?.includes("message port closed")) {
-      event.preventDefault();
-    }
-  });
-});
+function dragoverSamplerHandler(ev) {
+  ev.preventDefault();
+}
 
-await initSampler();
+function dropSamplerHandler(ev) {
+  ev.preventDefault();
+  const data = ev.dataTransfer.getData("text");
+  ev.target.appendChild(document.getElementById(data));
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await (audioplayer = new AudioPlayer());
+  const unlockAudio = async () => {
+    await audioplayer.initAudio();
+    console.log("Audio unlocked:", audioplayer.audioContext.state);
+    window.removeEventListener("click", unlockAudio);
+  };
+  window.addEventListener("click", unlockAudio);
+  await initSampler();
+});
