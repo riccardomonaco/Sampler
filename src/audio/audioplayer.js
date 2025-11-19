@@ -70,9 +70,14 @@ export default class AudioPlayer {
   }
 
   setupEventListeners() {
-    document.getElementById("play-button").addEventListener("click", () => {
-      this.wavesurfer.play();
-    });
+    document
+      .getElementById("play-button")
+      .addEventListener("click", async () => {
+        if (audioplayer.context?.state === "suspended") {
+          await this.audioContext.resume();
+        }
+        this.wavesurfer.play();
+      });
 
     document.getElementById("pause-button").addEventListener("click", () => {
       this.wavesurfer.pause();
