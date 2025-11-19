@@ -1,4 +1,5 @@
-<html lang="en">
+<!DOCTYPE html>
+<html lang="it">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,7 +19,42 @@
     <title>Sampler</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div class="wrapper">
+      <!-- SAMPLER SECTION -->
+      <div class="sampler-wrapper">
+        <div class="sampler border-shadow">
+          <!-- Waveform -->
+          <div id="waveform"></div>
+
+          <!-- Equalizer -->
+          <div class="eq-grid">
+            <div class="sliders-wrapper" id="sliders-wrapper">
+              <!-- Gli slider saranno generati dinamicamente in JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Commands -->
+        <div class="commands border-shadow">
+          <div class="command-buttons">
+            <div class="old-button" id="play-button">▶︎</div>
+            <div class="old-button" id="pause-button">||</div>
+            <div class="old-button" id="stop-button">◼</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EFFECTS SECTION -->
+      <div class="effects border-shadow">
+        <div class="loop-buttons">
+          <div class="old-button" id="d2-button">◀</div>
+          <div class="old-button" id="loop-button">↻</div>
+          <div class="old-button" id="x2-button">▶</div>
+        </div>
+        <div class="loop-label">LOOP CONTROLS</div>
+      </div>
+    </div>
+
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

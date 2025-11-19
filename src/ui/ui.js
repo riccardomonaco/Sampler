@@ -1,4 +1,5 @@
-import { eqBands } from "../main.js";
+import { eqBands } from "../audio/audioglobal.js";
+import { audioplayer } from "../main.js";
 
 /**
  *
@@ -118,10 +119,8 @@ function createWaveWrapper() {
  *
  * @return {*}
  */
-function createEqualizer() {
-  const grid = createEqualizerGrid();
-  const slidersContainer = document.createElement("div");
-  slidersContainer.classList.add("sliders-wrapper");
+export default function createEqualizer() {
+  const slidersContainer = document.getElementById("sliders-wrapper");
   const sliders = eqBands.map((e) => {
     const slider = document.createElement("input");
     slider.classList.add("slider-eq");
@@ -135,8 +134,7 @@ function createEqualizer() {
     });
     slidersContainer.appendChild(slider);
   });
-  grid.appendChild(slidersContainer);
-  return grid;
+  return slidersContainer;
 }
 
 /**
@@ -154,7 +152,7 @@ function createEqualizerGrid() {
  *
  *
  */
-export default function createPageDefault() {
+export  function createPageDefault() {
   const wrapper = document.createElement("div");
   wrapper.classList.add("wrapper");
 

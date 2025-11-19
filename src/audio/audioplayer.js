@@ -1,5 +1,7 @@
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
+import { eqBands } from "./audioglobal.js";
+import { breakbeat1 } from "./audiobanks.js";
 
 export default class AudioPlayer {
   constructor() {
@@ -13,30 +15,36 @@ export default class AudioPlayer {
     this.regions = RegionsPlugin.create();
     this.currentRegion = null;
     this.wavesurfer = null;
+    this.isEmpty = true;
 
-    this.cnt = document.getElementById('waveform');
-    console.log(cnt);
+    this.filters = null;
+    this.mediaNode = null;
+    this.eqInitialized = false;
 
-    // Inizializza WaveSurfer
     this.initWaveSurfer();
     this.setupEventListeners();
   }
 
   initWaveSurfer() {
-    console.log(cnt);
-
     this.wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#ccc",
       progressColor: "#2196f3",
       cursorColor: "#333",
       height: 250,
-      plugin: [this.regions],
+      plugins: [this.regions],
     });
 
+    this.initEqualizer();
+
+    this.wavesurfer.on("decode", () => {
+      // Aspetta un frame per essere sicuri che tutto sia pronto
+      requestAnimationFrame(() => this.initEqualizer());
+    });
     // Event listeners di WaveSurfer
     this.wavesurfer.on("ready", () => {
       console.log("WaveSurfer ready");
+      this.initEqualizer();
     });
 
     this.wavesurfer.on("seek", (progress) => {
@@ -63,34 +71,22 @@ export default class AudioPlayer {
 
   setupEventListeners() {
     document.getElementById("play-button").addEventListener("click", () => {
-      wavesurfer.play();
+      this.wavesurfer.play();
     });
 
     document.getElementById("pause-button").addEventListener("click", () => {
-      wavesurfer.pause();
+      this.wavesurfer.pause();
     });
 
     document.getElementById("stop-button").addEventListener("click", () => {
-      wavesurfer.stop();
+      this.wavesurfer.stop();
     });
 
-    document.getElementById("loop-button").addEventListener("click", () => {
-      loopController();
-    });
+    document.getElementById("loop-button").addEventListener("click", () => {});
 
-    document.getElementById("x2-button").addEventListener("click", () => {
-      loopDurationSeconds *= 2;
-      looping = false;
-      regions.clearRegions();
-      loopController();
-    });
+    document.getElementById("x2-button").addEventListener("click", () => {});
 
-    document.getElementById("d2-button").addEventListener("click", () => {
-      loopDurationSeconds /= 2;
-      looping = false;
-      regions.clearRegions();
-      loopController();
-    });
+    document.getElementById("d2-button").addEventListener("click", () => {});
   }
 
   async loadAudioFile(file) {
@@ -98,13 +94,14 @@ export default class AudioPlayer {
 
     try {
       // Carica il file in ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
+      //const arrayBuffer = await file.arrayBuffer();
 
       // Decodifica con Web Audio API
-      this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      //this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
       // Carica la waveform in WaveSurfer
-      this.wavesurfer.load(URL.createObjectURL(file));
+      console.log(file);
+      this.wavesurfer.load(breakbeat1);
 
       console.log("Audio caricato con successo");
     } catch (error) {
@@ -114,11 +111,6 @@ export default class AudioPlayer {
 
   play() {
     if (!this.audioBuffer) return;
-
-    if (this.isPlaying) {
-      this.pause();
-      return;
-    }
 
     this.isPlaying = true;
 
@@ -212,6 +204,13 @@ export default class AudioPlayer {
   handleInteraction() {
     // Gestisci interazioni con la waveform
     console.log("Interazione con la waveform");
+
+    this.wavesurfer.playPause();
+
+    if (this.isEmpty) {
+      this.loadAudioFile("CIAO");
+      this.isEmpty = false;
+    }
   }
 
   addRegion() {
@@ -283,9 +282,57 @@ export default class AudioPlayer {
       this.play();
     }
   }
-}
 
-// Inizializza il player quando la pagina è caricata
-document.addEventListener("DOMContentLoaded", () => {
-  window.audioplayer = new AudioPlayer();
-});
+  initEqualizer() {
+    if (this.eqInitialized) return;
+
+    const audio = this.wavesurfer.getMediaElement();
+
+    // Crea il MediaElementSource UNA SOLA VOLTA
+    this.mediaNode = this.audioContext.createMediaElementSource(audio);
+
+    // Crea i filtri
+    this.filters = eqBands.map((band) => {
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type =
+        band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
+      filter.gain.value = 0; // Inizia flat
+      filter.Q.value = 1;
+      filter.frequency.value = band;
+      return filter;
+    });
+
+    // Collega i filtri in serie
+    let currentNode = this.mediaNode;
+    this.filters.forEach((filter) => {
+      currentNode.connect(filter);
+      currentNode = filter;
+    });
+
+    // Collega l'ultimo filtro alla destinazione
+    currentNode.connect(this.audioContext.destination);
+
+    // Collega gli slider ai filtri
+    this.connectSliders();
+
+    this.eqInitialized = true;
+  }
+
+  connectSliders() {
+    const sliders = document.querySelectorAll(".slider-eq");
+    console.log(sliders);
+
+    sliders.forEach((slider, i) => {
+      if (this.filters[i]) {
+        // Imposta il valore iniziale
+        this.filters[i].gain.value = slider.value;
+
+        // Aggiorna il filtro quando lo slider cambia
+        slider.oninput = (e) => {
+          this.filters[i].gain.value = e.target.value;
+          console.log(`EQ Band ${eqBands[i]}Hz: ${e.target.value}dB`);
+        };
+      }
+    });
+  }
+}
