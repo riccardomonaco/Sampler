@@ -17,7 +17,7 @@ body {
 }
 .wrapper {
   display: grid;
-  grid-template-columns: 800px 150px;
+  grid-template-columns: 800px 190px 250px;
   gap: 50px;
   position: relative;
   left: 5vw;
@@ -89,7 +89,7 @@ body {
 }
 
 #waveform.dragover {
-  background: #c9c9c9;
+  background: #161616;
 }
 
 #waveform {
@@ -142,7 +142,7 @@ body {
   align-items: end;
 }
 
-.eq-grid{
+.eq-grid {
   height: 150px;
 }
 
@@ -224,4 +224,39 @@ body {
 
 .bpm-led:hover {
   cursor: pointer;
+}
+
+.banks {
+  display: inline;
+  padding: 10px;
+  background-color: grey;
+  width: fit-content;
+  height: 545px;
+  position: relative;
+}
+
+.banks-label {
+  margin-bottom: -10px;
+  padding: 5px;
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  font-size: 14pt;  
+  text-align: center;
+  vertical-align: middle;
+  color: #222;
+}
+
+.banks-dropdown {
+  margin: 15px;
+  padding: 5px;
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #222;
+  color: white;
 }

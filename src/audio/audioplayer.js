@@ -13,7 +13,11 @@ export default class AudioPlayer {
     this.isPlaying = false;
     this.startTime = 0;
     this.pauseTime = 0;
-    this.regions = RegionsPlugin.create();
+    this.regions = RegionsPlugin.create({
+      container: "#waveform",
+      //dragSelection: true,
+      loop: true,
+    });
     this.currentRegion = null;
     this.wavesurfer = null;
     this.isEmpty = true;
@@ -38,6 +42,7 @@ export default class AudioPlayer {
       plugins: [this.regions],
       audioContext: this.audioContext,
     });
+
 
     this.wavesurfer.on("decode", () => {
       // Aspetta un frame per essere sicuri che tutto sia pronto
