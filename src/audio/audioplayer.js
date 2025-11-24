@@ -1,5 +1,7 @@
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
+import BeatDetect from "./BeatDetect.js";
+// import BeatDetektor from "./beatdetektor.js";
 
 import { eqBands } from "./audioglobal.js";
 import { breakbeat, lofi } from "./audiobanks.js";
@@ -13,14 +15,13 @@ export default class AudioPlayer {
     this.isPlaying = false;
     this.startTime = 0;
     this.pauseTime = 0;
-    this.regions = RegionsPlugin.create({
-      container: "#waveform",
-      //dragSelection: true,
-      loop: true,
-    });
+    this.regions = RegionsPlugin.create();
     this.currentRegion = null;
     this.wavesurfer = null;
     this.isEmpty = true;
+    this.isLooping = false;
+    this.currentAudioURL = "";
+    //this.beatDetector = new BeatDetektor(60, 180);
 
     this.filters = null;
     this.mediaNode = null;
@@ -28,8 +29,21 @@ export default class AudioPlayer {
 
     this.bpm = 0;
 
+    this.beatDetect = new BeatDetect({
+      sampleRate: this.audioContext.sampleRate, // Most track are using this sample rate
+      log: false, // Debug BeatDetect execution with logs
+      perf: false, // Attach elapsed time to result object
+      round: false, // To have an integer result for the BPM
+      float: 4, // The floating precision in [1, Infinity]
+      lowPassFreq: 150, // Low pass filter cut frequency
+      highPassFreq: 100, // High pass filter cut frequency
+      bpmRange: [70, 180], // The BPM range to output
+      timeSignature: 4, // The number of beat in a measure
+    });
+
     this.initWaveSurfer();
     this.setupEventListeners();
+    this.initBeatDetect();
   }
 
   initWaveSurfer() {
@@ -43,7 +57,6 @@ export default class AudioPlayer {
       audioContext: this.audioContext,
     });
 
-
     this.wavesurfer.on("decode", () => {
       // Aspetta un frame per essere sicuri che tutto sia pronto
       requestAnimationFrame(() => this.initEqualizer());
@@ -54,6 +67,7 @@ export default class AudioPlayer {
       this.initEqualizer();
       this.bpm = await this.detectBPM();
       document.getElementById("bpm-led").textContent = this.bpm + " BPM";
+      document.getElementById("plus-wrapper").remove();
     });
 
     this.wavesurfer.on("seek", (progress) => {
@@ -76,6 +90,79 @@ export default class AudioPlayer {
     this.wavesurfer.on("region-click", (region, e) => {
       this.handleRegionClick(region, e);
     });
+
+    this.regions.on("region-in", (region) => {
+      this.currentRegion = region;
+    });
+
+    this.regions.on("region-out", (region) => {
+      console.log("region-out", region);
+      if (this.currentRegion === region) {
+        if (this.isLooping) {
+          this.currentRegion.play();
+        } else {
+          this.currentRegion = null;
+        }
+      }
+    });
+  }
+
+  initBeatDetect() {
+    this.lockTimer = null; // Timer per capire quando hai finito
+    this.lastTapTime = 0; // Per calcolare il reset della sessione
+    const bpmLed = document.getElementById("bpm-led");
+
+    this.beatDetect.tapBpm({
+      element: bpmLed,
+      precision: 4,
+      callback: (bpm) => {
+        const now = Date.now();
+
+        // 1. Resetta il timer di "Lock" (perché hai appena cliccato ancora)
+        if (this.lockTimer) {
+          clearTimeout(this.lockTimer);
+          this.lockTimer = null;
+        }
+
+        // 2. Controllo se è una NUOVA misurazione (dopo una pausa lunga)
+        if (now - this.lastTapTime > 2000) {
+          // Non aggiorniamo il testo al primissimo click della nuova serie
+          // per evitare valori sballati, ma salviamo il tempo.
+        } else {
+          // --- DURANTE LA MISURAZIONE ---
+          // Aggiorna il valore a schermo
+          bpmLed.classList.remove("bpm-led-locked");
+
+          this.bpm = Math.round(bpm);
+          bpmLed.textContent = this.bpm + " BPM";
+
+          // Assicurati che il colore sia quello di "edit"
+        }
+
+        this.lastTapTime = now;
+
+        // 3. Imposta il timer per il LOCK
+        // Se non clicchi per 2 secondi, questo codice verrà eseguito
+        this.lockTimer = setTimeout(() => {
+          // --- FINE SESSIONE (LOCK) ---
+          bpmLed.classList.add("bpm-led-locked");
+        }, 2000);
+      },
+    });
+
+    this.beatDetect
+      .getBeatInfo({
+        url: this.currentAudioURL,
+      })
+      .then((info) => {
+        console.log("SAAAAAAAAAAAAA");
+        console.log(info.bpm); // 140
+        console.log(info.offset); // 0.1542
+        console.log(info.firstBar); // 0.1.8722
+      })
+      .catch((error) => {
+        // The error string
+      });
   }
 
   initAudio() {
@@ -102,14 +189,70 @@ export default class AudioPlayer {
     });
 
     document.getElementById("stop-button").addEventListener("click", () => {
+      if (this.isLooping) {
+        this.wavesurfer.seekTo(0);
+      }
       this.wavesurfer.stop();
     });
 
-    document.getElementById("loop-button").addEventListener("click", () => {});
+    document.getElementById("loop-button").addEventListener("click", () => {
+      if (!this.isLooping) {
+        this.regions.addRegion({
+          start: this.wavesurfer.getCurrentTime(),
+          end: this.wavesurfer.getCurrentTime() + (60 / this.bpm) * 4,
+          loop: true,
 
-    document.getElementById("x2-button").addEventListener("click", () => {});
+          // ▶️ Questi due valori rendono VISIBILE la region
+          color: "rgba(165, 165, 165, 0.3)",
+          handleStyle: {
+            left: "rgba(0, 150, 255, 0.9)",
+            right: "rgba(0, 150, 255, 0.9)",
+          },
+        });
+      } else {
+        this.regions.clearRegions();
+      }
+      this.isLooping = !this.isLooping;
+      document
+        .getElementById("loop-button")
+        .classList.toggle("old-button-loop");
+    });
 
-    document.getElementById("d2-button").addEventListener("click", () => {});
+    document.getElementById("x2-button").addEventListener("click", () => {
+      if (this.isLooping) {
+        this.regions.clearRegions();
+        this.regions.addRegion({
+          start: this.currentRegion.start,
+          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) * 2,
+          loop: true,
+
+          // ▶️ Questi due valori rendono VISIBILE la region
+          color: "rgba(165, 165, 165, 0.3)",
+          handleStyle: {
+            left: "rgba(0, 150, 255, 0.9)",
+            right: "rgba(0, 150, 255, 0.9)",
+          },
+        });
+      }
+    });
+
+    document.getElementById("d2-button").addEventListener("click", () => {
+            if (this.isLooping) {
+        this.regions.clearRegions();
+        this.regions.addRegion({
+          start: this.currentRegion.start,
+          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) / 2,
+          loop: true,
+
+          // ▶️ Questi due valori rendono VISIBILE la region
+          color: "rgba(165, 165, 165, 0.3)",
+          handleStyle: {
+            left: "rgba(0, 150, 255, 0.9)",
+            right: "rgba(0, 150, 255, 0.9)",
+          },
+        });
+      }
+    });
 
     document.getElementById("bpm-led").addEventListener("click", () => {
       bpm = this.detectBPM();
@@ -136,6 +279,8 @@ export default class AudioPlayer {
 
       const objectUrl = URL.createObjectURL(file);
       this.loadAudioFile(objectUrl);
+      this.currentAudioURL = objectUrl;
+      console.log(this.currentAudioURL);
     });
   }
 
@@ -147,97 +292,15 @@ export default class AudioPlayer {
     } catch (error) {}
   }
 
-  play() {
-    if (!this.audioBuffer) return;
+  play() {}
 
-    this.isPlaying = true;
+  pause() {}
 
-    // Crea source node
-    this.audioSource = this.audioContext.createBufferSource();
-    this.audioSource.buffer = this.audioBuffer;
-    this.audioSource.connect(this.audioContext.destination);
+  stop() {}
 
-    // Gestione loop region
-    if (this.currentRegion) {
-      const region = this.currentRegion;
-      const start = region.start * this.audioBuffer.duration;
-      const end = region.end * this.audioBuffer.duration;
+  updatePlaybackPosition() {}
 
-      this.audioSource.loop = true;
-      this.audioSource.loopStart = start;
-      this.audioSource.loopEnd = end;
-
-      this.audioSource.start(0, start);
-      this.startTime = this.audioContext.currentTime - start;
-    } else {
-      // Play normale
-      const startTime = this.pauseTime;
-      this.audioSource.start(0, startTime);
-      this.startTime = this.audioContext.currentTime - startTime;
-    }
-
-    // Aggiorna WaveSurfer
-    this.wavesurfer.play();
-
-    // Animation frame per sync
-    this.updatePlaybackPosition();
-  }
-
-  pause() {
-    if (!this.isPlaying || !this.audioSource) return;
-
-    this.isPlaying = false;
-    this.pauseTime = this.audioContext.currentTime - this.startTime;
-
-    // Ferma Web Audio
-    this.audioSource.stop();
-    this.audioSource = null;
-
-    // Ferma WaveSurfer
-    this.wavesurfer.pause();
-  }
-
-  stop() {
-    this.isPlaying = false;
-    this.pauseTime = 0;
-    this.startTime = 0;
-
-    if (this.audioSource) {
-      this.audioSource.stop();
-      this.audioSource = null;
-    }
-
-    this.wavesurfer.stop();
-    this.wavesurfer.seekTo(0);
-  }
-
-  updatePlaybackPosition() {
-    if (!this.isPlaying) return;
-
-    const currentTime = this.audioContext.currentTime - this.startTime;
-    const duration = this.audioBuffer.duration;
-    const progress = currentTime / duration;
-
-    // Aggiorna la posizione di WaveSurfer
-    if (progress >= 0 && progress <= 1) {
-      this.wavesurfer.seekTo(progress);
-    }
-
-    // Continua l'update
-    requestAnimationFrame(() => this.updatePlaybackPosition());
-  }
-
-  handleSeek(progress) {
-    if (this.isPlaying) {
-      // Se è in riproduzione, aggiorna la posizione di Web Audio
-      this.pause();
-      this.pauseTime = progress * this.audioBuffer.duration;
-      this.play();
-    } else {
-      // Se è in pausa, aggiorna solo il tempo di pausa
-      this.pauseTime = progress * this.audioBuffer.duration;
-    }
-  }
+  handleSeek(progress) {}
 
   handleInteraction() {
     this.wavesurfer.play();
@@ -371,6 +434,23 @@ export default class AudioPlayer {
   }
 
   detectBPM() {
+    /*     audioBuffer = this.wavesurfer.getDecodedData();
+    let steps = int(this.audioBuffer / 512);
+
+    steps.forEach((e) => {});
+
+    try {
+      const features = analyser.get(featuresToGet);
+
+      this.beatDetector.process();
+      beatDetektorKick.process(beatDetektor);
+      const kick = beatDetektorKick.isKick();
+      const bpm = beatDetektor.win_bpm_int_lo;
+
+      bpmTitle.textContent = `BPM: ${bpm}`;
+      kickTitle.textContent = `Kick: ${kick ? "kick" : ""}`;
+    } catch (e) {}
+  } */
     return 175;
   }
 }

@@ -178,3 +178,8 @@ function formatFreqLabel(freq) {
   }
   return `${freq} Hz`;
 }
+
+export function createAddSample(){
+  plus = document.createElement("div");
+  plus.classList.add("")
+}

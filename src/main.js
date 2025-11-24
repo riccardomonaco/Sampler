@@ -9,16 +9,6 @@ function initSampler() {
   createEqualizer();
 }
 
-function dragoverSamplerHandler(ev) {
-  ev.preventDefault();
-}
-
-function dropSamplerHandler(ev) {
-  ev.preventDefault();
-  const data = ev.dataTransfer.getData("text");
-  ev.target.appendChild(document.getElementById(data));
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
   await (audioplayer = new AudioPlayer());
   const unlockAudio = async () => {

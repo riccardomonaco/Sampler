@@ -82,6 +82,24 @@ body {
   transform: scale(0.99);
 }
 
+.old-button-loop {
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #222;
+  padding: 5px 20px;
+  box-shadow: 5px 5px black;
+  transition-property: transform, box-shadow, outline-offset;
+  transition: 100ms ease-in;
+  color: white;
+  background-color: rgb(0, 38, 64);
+  text-shadow: 0px 0px 20px #ffff00cc;
+  color: #00ccffcc;
+}
+
 .command-buttons {
   display: inline-flex;
   gap: 10px;
@@ -208,6 +226,26 @@ body {
   font-weight: 400;
   font-style: bold;
   font-size: 20pt;
+  background-color: rgb(30, 64, 30);
+  text-align: center;
+  line-height: 50px;
+  border-top: 3px solid #000000ee;
+  border-left: 3px solid #000000ee;
+  border-bottom: 1px solid #cfcfcf33;
+  border-right: 1px solid #cfcfcf33;
+  border-radius: 5px;
+  box-shadow: 0px 0px 50px #000000ee inset;
+  text-shadow: 0px 0px 20px #9b9b2ecc;
+  margin: 5px;
+  color: #8bdfb2cc;
+}
+
+.bpm-led-locked {
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  font-size: 20pt;
   background-color: rgb(0, 64, 0);
   text-align: center;
   line-height: 50px;
@@ -242,7 +280,7 @@ body {
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: bold;
-  font-size: 14pt;  
+  font-size: 14pt;
   text-align: center;
   vertical-align: middle;
   color: #222;
@@ -259,4 +297,28 @@ body {
   vertical-align: middle;
   background-color: #222;
   color: white;
+}
+
+.plus-wrapper {
+  position: absolute;
+  top: 30%; /* Posiziona al centro verticale */
+  left: 50%; /* Posiziona al centro orizzontale */
+  transform: translate(-50%, -50%); /* Centratura perfetta */
+
+  background: rgba(0, 0, 0, 0.2); /* Sfondo semitrasparente per leggibilità */
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+
+  pointer-events: none; /* CRUCIALE: permette di cliccare "attraverso" il testo sui bottoni sotto */
+  opacity: 1;
+  transition: opacity 0.5s ease-out; /* Per l'animazione di sparizione */
+  z-index: 10; /* Assicura che stia sopra a tutto */
+
+  font-family: "Pixelify Sans", system-ui;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: bold;
+  font-size: 26pt;
 }
