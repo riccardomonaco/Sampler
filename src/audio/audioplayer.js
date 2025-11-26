@@ -50,7 +50,7 @@ export default class AudioPlayer {
     this.wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#ccc",
-      progressColor: "#3d7fb6ff",
+      progressColor: "#4b657aff",
       cursorColor: "#333",
       height: 250,
       plugins: [this.regions],

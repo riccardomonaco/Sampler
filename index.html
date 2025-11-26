@@ -38,22 +38,28 @@
 
         <!-- Commands -->
         <div class="commands border-shadow">
+          <div class="loop-label">PLAYBACK</div>
           <div class="command-buttons">
             <div class="old-button" id="play-button">▶︎</div>
             <div class="old-button" id="pause-button">||</div>
             <div class="old-button" id="stop-button">◼</div>
+          </div>
+          <div class="loop-label">LOOP</div>
+          <div class="loop-buttons">
+            <div class="old-button" id="d2-button">◀</div>
+            <div class="old-button" id="loop-button">↻</div>
+            <div class="old-button" id="x2-button">▶</div>
+          </div>
+          <div class="loop-label">REC</div>
+          <div class="rec-buttons">
+            <div class="old-button" id="d2-button">⦿</div>
           </div>
         </div>
       </div>
 
       <!-- EFFECTS SECTION -->
       <div class="effects border-shadow">
-        <div class="loop-buttons">
-          <div class="old-button" id="d2-button">◀</div>
-          <div class="old-button" id="loop-button">↻</div>
-          <div class="old-button" id="x2-button">▶</div>
-        </div>
-        <div class="loop-label">LOOP CONTROLS</div>
+        <div class="fx-label">EFFECTS</div>
         <div class="fx-buttons-wrapper">
           <div class="fx-buttons">
             <img
@@ -86,7 +92,6 @@
             />
           </div>
         </div>
-        <div class="fx-label">FX CONTROLS</div>
         <div class="bpm-led-wrapper">
           <div class="bpm-led" id="bpm-led">BPM</div>
         </div>
@@ -96,8 +101,7 @@
       <div class="banks border-shadow">
         <div class="banks-menu">
           <div class="banks-label">CHOOSE A SOUNDBANK</div>
-          <select name="banks" id="banks" class="banks-dropdown">
-          </select>
+          <select name="banks" id="banks" class="banks-dropdown"></select>
         </div>
         <div class="banks-content"></div>
       </div>

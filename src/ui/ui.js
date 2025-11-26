@@ -202,7 +202,7 @@ function createBank(bankName) {
     const pad = document.createElement("div");
     pad.classList.add("sample-pad");
     pad.textContent = sample.name;
-    pad.style.borderLeft = `4px solid ${sample.color}`;
+    pad.style.borderBottom = `4px solid ${sample.color}`;
 
     pad.draggable = true;
     pad.addEventListener("dragstart", (e) => {
