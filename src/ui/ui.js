@@ -1,4 +1,8 @@
 import { eqBands } from "../audio/audioglobal.js";
+import { soundBanks } from "../audio/audioglobal.js";
+
+const bankSelect = document.getElementById("banks"); // La Select
+const banksContent = document.querySelector(".banks-content");
 
 /**
  *
@@ -127,8 +131,8 @@ export default function createEqualizer() {
     const slider = document.createElement("input");
     slider.classList.add("slider-eq");
     slider.type = "range";
-    slider.min = -40;
-    slider.max = 40;
+    slider.min = -12;
+    slider.max = 12;
     slider.value = 0;
     slider.step = 0.1;
     slider.addEventListener("dblclick", (event) => {
@@ -179,7 +183,57 @@ function formatFreqLabel(freq) {
   return `${freq} Hz`;
 }
 
-export function createAddSample(){
+export function createAddSample() {
   plus = document.createElement("div");
-  plus.classList.add("")
+  plus.classList.add("");
+}
+
+function createBank(bankName) {
+  banksContent.innerHTML = "";
+
+  if (!bankName) {
+    return;
+  }
+
+  const samples = soundBanks[bankName];
+  if (!samples) return;
+
+  samples.forEach((sample) => {
+    const pad = document.createElement("div");
+    pad.classList.add("sample-pad");
+    pad.textContent = sample.name;
+    pad.style.borderLeft = `4px solid ${sample.color}`;
+
+    pad.draggable = true;
+    pad.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("type", "sample");
+      e.dataTransfer.setData("audioUrl", sample.url);
+      e.dataTransfer.effectAllowed = "copy";
+    });
+
+    banksContent.appendChild(pad);
+  });
+}
+
+bankSelect.addEventListener("change", (e) => {
+  createBank(e.target.value);
+});
+
+export function initBankMenu() {
+  bankSelect.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = ""; 
+  defaultOption.textContent = "-- SELECT SOUND BANK --";
+  defaultOption.disabled = true; 
+  defaultOption.selected = true;
+  defaultOption.hidden = true; 
+  bankSelect.appendChild(defaultOption);
+
+  Object.keys(soundBanks).forEach((bankName) => {
+    const option = document.createElement("option");
+    option.value = bankName;
+    option.textContent = bankName;
+    bankSelect.appendChild(option);
+  });
 }

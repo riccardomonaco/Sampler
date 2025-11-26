@@ -322,3 +322,171 @@ body {
   font-style: bold;
   font-size: 26pt;
 }
+
+/** FX RACK SECTION */
+
+.drive-slot {
+  width: 100%;
+  height: 40px; /* Altezza fissa del drive */
+  background-color: #0a0a0a; /* Nero profondo */
+  border-bottom: 1px solid #333; /* Luce riflessa sul bordo */
+  border-top: 1px solid #000; /* Ombra interna */
+  box-shadow: inset 2px 2px 5px #000, inset -2px -2px 0px #222; /* Effetto incassato */
+  padding: 4px; /* Spazio interno dove vive il floppy */
+  box-sizing: border-box;
+  border-radius: 2px;
+  position: relative;
+}
+
+/* IL FLOPPY DISK (L'oggetto che esce) */
+.floppy-disk {
+  width: 95%; /* Leggermente più piccolo dello slot */
+  height: 100%;
+  margin: 0 auto; /* Centrato */
+
+  /* Colore base del floppy (plastica grigia/beige) */
+  background-color: #ccc;
+
+  /* Forma */
+  border-radius: 2px 2px 0 0;
+  border: 1px solid #999;
+  border-bottom: none; /* Sembra continuare dentro */
+
+  /* Ombra che lo fa sembrare sollevato dallo slot */
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.5);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  box-sizing: border-box;
+
+  cursor: grab;
+  transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28); /* Rimbalzo elastico */
+
+  /* Posizione di partenza: leggermente dentro */
+  transform: translateY(2px);
+}
+
+/* HOVER: Il floppy esce fuori! */
+.floppy-disk:hover {
+  transform: translateY(-8px); /* Esce dallo slot verso l'alto */
+  background-color: #ddd;
+}
+
+/* ACTIVE: Mentre lo trascini */
+.floppy-disk:active {
+  cursor: grabbing;
+}
+
+/* ETICHETTA DEL FLOPPY */
+.floppy-label {
+  font-family: monospace;
+  font-weight: 900;
+  font-size: 0.8rem;
+  color: #111;
+  background: #fff;
+  padding: 2px 6px;
+  border-radius: 2px;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+  transform: rotate(-2deg); /* Tocco realistico: etichetta storta */
+}
+
+/* DETTAGLIO "SHUTTER" (La parte metallica) */
+.floppy-shutter {
+  width: 15px;
+  height: 20px;
+  background: linear-gradient(90deg, #888, #eee, #888);
+  border: 1px solid #555;
+  border-radius: 1px;
+}
+
+.fx-buttons {
+  display: grid;
+  /* Crea 2 colonne di larghezza uguale */
+  grid-template-columns: 1fr 1fr;
+  /* Spazio tra le immagini */
+  gap: 10px;
+  /* Spazio dai bordi del pannello */
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.floppy-first-row {
+  display: grid;
+}
+
+.fx-img {
+  width: 100%; /* Si adatta alla larghezza della colonna */
+  height: auto; /* Mantiene le proporzioni originali */
+  cursor: grab; /* Cursore "Mano aperta" */
+
+  /* Opzionale: Transizioni per hover */
+  transition: transform 0.1s ease, filter 0.1s ease;
+  border-radius: 4px; /* Se vuoi gli angoli smussati */
+}
+
+.fx-img:hover {
+  transform: scale(1.05); /* Si ingrandisce leggermente */
+  filter: brightness(1.2); /* Diventa più luminosa */
+}
+
+/* Effetto Active (mentre clicchi/trascini) */
+.fx-img:active {
+  cursor: grabbing; /* Cursore "Mano chiusa" */
+  transform: scale(0.); /* Si rimpicciolisce (effetto click) */
+  opacity: 0.8;
+}
+
+/* Il contenitore che avevi nel tuo HTML */
+.banks-content {
+    display: grid;
+    /* Crea colonne automatiche (minimo 80px di larghezza) */
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    padding: 15px;
+    background-color: #222; /* Sfondo scuro interno */
+    min-height: 150px;
+    /* Opzionale: scroll se ci sono troppi sample */
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.sample-pad {
+    aspect-ratio: 1 / 1; /* Quadrato perfetto */
+    background-color: #3b3b3b;
+    color: #ccc;
+  font-family: "Pixelify Sans", system-ui;
+
+    font-size: 0.75rem;
+    padding: 8px;
+    
+    /* Layout del testo */
+    display: flex;
+    align-items: flex-end;
+    word-break: break-word;
+    
+    cursor: grab;
+    transition: all 0.1s ease;
+    user-select: none;
+    
+    /* Effetto 3D leggero */
+    box-shadow: 5px 5px 0px #000;
+}
+
+/* Hover: il pad si "illumina" */
+.sample-pad:hover {
+    background-color: #333;
+    color: #fff;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px #000;
+    border-color: #666;
+}
+
+/* Active: mentre lo trascini */
+.sample-pad:active {
+    cursor: grabbing;
+    transform: translate(2px, 2px); /* Effetto premuto */
+    box-shadow: 1px 1px 0px #000;
+}

@@ -1,52 +1,52 @@
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
 import BeatDetect from "./BeatDetect.js";
-// import BeatDetektor from "./beatdetektor.js";
 
 import { eqBands } from "./audioglobal.js";
-import { breakbeat, lofi } from "./audiobanks.js";
-
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
       window.webkitAudioContext)();
-    this.audioSource = null;
-    this.audioBuffer = null;
-    this.isPlaying = false;
-    this.startTime = 0;
-    this.pauseTime = 0;
+
+    // Wavesurfer variables
+    this.wavesurfer = null;
     this.regions = RegionsPlugin.create();
     this.currentRegion = null;
-    this.wavesurfer = null;
+    this.filters = [];
+
+    // Internal state variables
     this.isEmpty = true;
     this.isLooping = false;
     this.currentAudioURL = "";
-    //this.beatDetector = new BeatDetektor(60, 180);
-
-    this.filters = null;
-    this.mediaNode = null;
-    this.eqInitialized = false;
-
+    this.originalBuffer = null;
     this.bpm = 0;
 
+    // Beat detection config structure
     this.beatDetect = new BeatDetect({
-      sampleRate: this.audioContext.sampleRate, // Most track are using this sample rate
-      log: false, // Debug BeatDetect execution with logs
-      perf: false, // Attach elapsed time to result object
-      round: false, // To have an integer result for the BPM
-      float: 4, // The floating precision in [1, Infinity]
-      lowPassFreq: 150, // Low pass filter cut frequency
-      highPassFreq: 100, // High pass filter cut frequency
-      bpmRange: [70, 180], // The BPM range to output
-      timeSignature: 4, // The number of beat in a measure
+      sampleRate: this.audioContext.sampleRate,
+      log: false,
+      perf: false,
+      round: false,
+      float: 4,
+      lowPassFreq: 150,
+      highPassFreq: 100,
+      bpmRange: [70, 180],
+      timeSignature: 4,
     });
 
+    // Init methods
     this.initWaveSurfer();
     this.setupEventListeners();
     this.initBeatDetect();
   }
 
+  /**
+   * Initializing Wavesurfer related states and variables
+   *
+   * @memberof AudioPlayer
+   */
   initWaveSurfer() {
+    //Create and config wavesufer main obj
     this.wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#ccc",
@@ -57,17 +57,36 @@ export default class AudioPlayer {
       audioContext: this.audioContext,
     });
 
+    // 'decode' -> When audio is loaded, then get data
     this.wavesurfer.on("decode", () => {
-      // Aspetta un frame per essere sicuri che tutto sia pronto
-      requestAnimationFrame(() => this.initEqualizer());
+      const buffer = this.wavesurfer.getDecodedData();
+      if (buffer) {
+        // Create a copy of audio in a buffer
+        this.originalBuffer = buffer;
+        requestAnimationFrame(() => this.initEqualizer());
+      }
     });
-    // Event listeners di WaveSurfer
+
+    // 'ready' -> When audio is ready
     this.wavesurfer.on("ready", async () => {
-      console.log("WaveSurfer ready");
       this.initEqualizer();
-      this.bpm = await this.detectBPM();
-      document.getElementById("bpm-led").textContent = this.bpm + " BPM";
+      await this.detectBPM();
       document.getElementById("plus-wrapper").remove();
+      this.regions.enableDragSelection({
+        color: "rgba(165, 165, 165, 0.3)",
+      });
+    });
+
+    this.wavesurfer.on("click", (relativeX) => {
+      /*       const isPlaying = this.wavesurfer.isPlaying();
+
+      if (isPlaying) {
+      } else {
+        const duration = this.wavesurfer.getDuration();
+        const timestamp = duration * relativeX;
+
+        this.createMarker(timestamp);
+      } */
     });
 
     this.wavesurfer.on("seek", (progress) => {
@@ -78,7 +97,6 @@ export default class AudioPlayer {
       this.handleInteraction();
     });
 
-    // Gestione regioni
     this.wavesurfer.on("region-created", (region) => {
       this.handleRegionCreated(region);
     });
@@ -96,20 +114,20 @@ export default class AudioPlayer {
     });
 
     this.regions.on("region-out", (region) => {
-      console.log("region-out", region);
-      if (this.currentRegion === region) {
-        if (this.isLooping) {
-          this.currentRegion.play();
-        } else {
-          this.currentRegion = null;
-        }
+      if (this.isLooping && this.currentRegion === region) {
+        region.play();
       }
     });
   }
 
+  /**
+   * Instantiate and config beat detection main obj
+   *
+   * @memberof AudioPlayer
+   */
   initBeatDetect() {
-    this.lockTimer = null; // Timer per capire quando hai finito
-    this.lastTapTime = 0; // Per calcolare il reset della sessione
+    this.lockTimer = null;
+    this.lastTapTime = 0;
     const bpmLed = document.getElementById("bpm-led");
 
     this.beatDetect.tapBpm({
@@ -118,51 +136,26 @@ export default class AudioPlayer {
       callback: (bpm) => {
         const now = Date.now();
 
-        // 1. Resetta il timer di "Lock" (perché hai appena cliccato ancora)
         if (this.lockTimer) {
           clearTimeout(this.lockTimer);
           this.lockTimer = null;
         }
 
-        // 2. Controllo se è una NUOVA misurazione (dopo una pausa lunga)
         if (now - this.lastTapTime > 2000) {
-          // Non aggiorniamo il testo al primissimo click della nuova serie
-          // per evitare valori sballati, ma salviamo il tempo.
         } else {
-          // --- DURANTE LA MISURAZIONE ---
-          // Aggiorna il valore a schermo
           bpmLed.classList.remove("bpm-led-locked");
 
           this.bpm = Math.round(bpm);
           bpmLed.textContent = this.bpm + " BPM";
-
-          // Assicurati che il colore sia quello di "edit"
         }
 
         this.lastTapTime = now;
 
-        // 3. Imposta il timer per il LOCK
-        // Se non clicchi per 2 secondi, questo codice verrà eseguito
         this.lockTimer = setTimeout(() => {
-          // --- FINE SESSIONE (LOCK) ---
           bpmLed.classList.add("bpm-led-locked");
         }, 2000);
       },
     });
-
-    this.beatDetect
-      .getBeatInfo({
-        url: this.currentAudioURL,
-      })
-      .then((info) => {
-        console.log("SAAAAAAAAAAAAA");
-        console.log(info.bpm); // 140
-        console.log(info.offset); // 0.1542
-        console.log(info.firstBar); // 0.1.8722
-      })
-      .catch((error) => {
-        // The error string
-      });
   }
 
   initAudio() {
@@ -177,6 +170,11 @@ export default class AudioPlayer {
     return Promise.resolve();
   }
 
+  /**
+   * Add listeners to buttons
+   *
+   * @memberof AudioPlayer
+   */
   setupEventListeners() {
     document
       .getElementById("play-button")
@@ -197,18 +195,16 @@ export default class AudioPlayer {
 
     document.getElementById("loop-button").addEventListener("click", () => {
       if (!this.isLooping) {
-        this.regions.addRegion({
+        /*  this.regions.addRegion({
           start: this.wavesurfer.getCurrentTime(),
           end: this.wavesurfer.getCurrentTime() + (60 / this.bpm) * 4,
           loop: true,
-
-          // ▶️ Questi due valori rendono VISIBILE la region
           color: "rgba(165, 165, 165, 0.3)",
           handleStyle: {
             left: "rgba(0, 150, 255, 0.9)",
             right: "rgba(0, 150, 255, 0.9)",
           },
-        });
+        }); */
       } else {
         this.regions.clearRegions();
       }
@@ -223,10 +219,10 @@ export default class AudioPlayer {
         this.regions.clearRegions();
         this.regions.addRegion({
           start: this.currentRegion.start,
-          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) * 2,
+          end:
+            this.currentRegion.start +
+            (this.currentRegion.end - this.currentRegion.start) * 2,
           loop: true,
-
-          // ▶️ Questi due valori rendono VISIBILE la region
           color: "rgba(165, 165, 165, 0.3)",
           handleStyle: {
             left: "rgba(0, 150, 255, 0.9)",
@@ -237,14 +233,15 @@ export default class AudioPlayer {
     });
 
     document.getElementById("d2-button").addEventListener("click", () => {
-            if (this.isLooping) {
+      if (this.isLooping) {
+        this.wavesurfer.seekTo(this.currentRegion.start);
         this.regions.clearRegions();
         this.regions.addRegion({
           start: this.currentRegion.start,
-          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) / 2,
+          end:
+            this.currentRegion.start +
+            (this.currentRegion.end - this.currentRegion.start) / 2,
           loop: true,
-
-          // ▶️ Questi due valori rendono VISIBILE la region
           color: "rgba(165, 165, 165, 0.3)",
           handleStyle: {
             left: "rgba(0, 150, 255, 0.9)",
@@ -254,11 +251,15 @@ export default class AudioPlayer {
       }
     });
 
-    document.getElementById("bpm-led").addEventListener("click", () => {
-      bpm = this.detectBPM();
-      document.getElementById("bpm-led").textContent = Math.round(bpm) + "BPM";
+    document.addEventListener("keydown", (e) => {
+      if (e.key.toLowerCase() === " ") {
+        this.wavesurfer.playPause();
+      }
     });
 
+    document.getElementById("bpm-led").addEventListener("click", () => {});
+
+    // Drag and drop audio file logic
     const dropArea = document.getElementById("waveform");
 
     dropArea.addEventListener("dragover", (e) => {
@@ -274,13 +275,20 @@ export default class AudioPlayer {
       e.preventDefault();
       dropArea.classList.remove("dragover");
 
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
+      const type = e.dataTransfer.getData("type");
+      const url = e.dataTransfer.getData("audioUrl");
 
-      const objectUrl = URL.createObjectURL(file);
-      this.loadAudioFile(objectUrl);
-      this.currentAudioURL = objectUrl;
-      console.log(this.currentAudioURL);
+      if (type === "sample" && url) {
+        this.wavesurfer.load(url);
+        this.currentAudioURL = url;
+      } else if (e.dataTransfer.files > 0) {
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+
+        const objectUrl = URL.createObjectURL(file);
+        this.loadAudioFile(objectUrl);
+        this.currentAudioURL = objectUrl;
+      }
     });
   }
 
@@ -340,6 +348,8 @@ export default class AudioPlayer {
   }
 
   handleRegionClick(region, e) {
+    this.handleRegionClick(region, e);
+    e.stopPropagation();
     // Imposta come regione corrente al click
     this.setCurrentRegion(region);
   }
@@ -433,24 +443,34 @@ export default class AudioPlayer {
     });
   }
 
-  detectBPM() {
-    /*     audioBuffer = this.wavesurfer.getDecodedData();
-    let steps = int(this.audioBuffer / 512);
+  async detectBPM() {
+    this.beatDetect
+      .getBeatInfo({
+        url: this.currentAudioURL,
+      })
+      .then((info) => {
+        console.log(info.bpm); // 140
+        console.log(info.offset); // 0.1542
+        console.log(info.firstBar); // 0.1.8722
+        this.bpm = Math.round(info.bpm);
+        document.getElementById("bpm-led").textContent = this.bpm + " BPM";
+      })
+      .catch((error) => {
+        // The error string
+      });
+  }
 
-    steps.forEach((e) => {});
+  createMarker(startTime) {
+    // Calcoliamo una durata di default (es. 1 secondo o 1 battuta in base ai BPM)
+    const duration = 0;
 
-    try {
-      const features = analyser.get(featuresToGet);
-
-      this.beatDetector.process();
-      beatDetektorKick.process(beatDetektor);
-      const kick = beatDetektorKick.isKick();
-      const bpm = beatDetektor.win_bpm_int_lo;
-
-      bpmTitle.textContent = `BPM: ${bpm}`;
-      kickTitle.textContent = `Kick: ${kick ? "kick" : ""}`;
-    } catch (e) {}
-  } */
-    return 175;
+    // Aggiungi la regione
+    const region = this.regions.addRegion({
+      start: startTime,
+      end: startTime + duration,
+      color: "rgba(0, 255, 0, 0.3)", // Verde semitrasparente
+      drag: true,
+      resize: true,
+    });
   }
 }
