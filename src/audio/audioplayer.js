@@ -97,7 +97,7 @@ export default class AudioPlayer {
       this.handleInteraction();
     });
 
-    this.wavesurfer.on("region-created", (region) => {
+    this.regions.on("region-created", (region) => {
       this.handleRegionCreated(region);
     });
 
@@ -257,7 +257,7 @@ export default class AudioPlayer {
       }
     });
 
-    document.getElementById("bpm-led").addEventListener("click", () => {});
+    document.getElementById("bpm-led").addEventListener("click", () => { });
 
     // Drag and drop audio file logic
     const dropArea = document.getElementById("waveform");
@@ -297,50 +297,104 @@ export default class AudioPlayer {
 
     try {
       await this.wavesurfer.load(file);
-    } catch (error) {}
+    } catch (error) { }
   }
 
-  play() {}
+  play() { }
 
-  pause() {}
+  pause() { }
 
-  stop() {}
+  stop() { }
 
-  updatePlaybackPosition() {}
+  updatePlaybackPosition() { }
 
-  handleSeek(progress) {}
+  handleSeek(progress) { }
 
   handleInteraction() {
     this.wavesurfer.play();
   }
 
   addRegion() {
-    if (!this.wavesurfer.getDuration()) return;
-
-    // Crea una regione di default
-    const duration = this.wavesurfer.getDuration();
-    const start = duration * 0.2;
-    const end = duration * 0.6;
-
-    const region = this.wavesurfer.addRegion({
-      start: start,
-      end: end,
-      color: "rgba(255, 0, 0, 0.1)",
-      drag: true,
-      resize: true,
-    });
-
-    this.regions.push(region);
+    /*     if (!this.wavesurfer.getDuration()) return;
+    
+        // Crea una regione di default
+        const duration = this.wavesurfer.getDuration();
+        const start = duration * 0.2;
+        const end = duration * 0.6;
+    
+        const region = this.wavesurfer.addRegion({
+          start: start,
+          end: end,
+          color: "rgba(255, 0, 0, 0.1)",
+          drag: true,
+          resize: true,
+        });
+    
+        this.regions.push(region); */
   }
 
   handleRegionCreated(region) {
-    console.log("Regione creata:", region);
-    this.regions.push(region);
+    console.log("DEBUG");
 
-    // Aggiungi listener per doppio click per impostare come regione corrente
-    region.on("dblclick", () => {
-      this.setCurrentRegion(region);
+    const regionElement = region.element;
+    console.log(region.element);
+
+    const deleteBtn = document.createElement('div');
+    deleteBtn.className = 'region-close-btn';
+    deleteBtn.textContent = 'x'; // Carattere "per" matematico, più bello della x
+    deleteBtn.title = "Delete Region"; // Tooltip
+
+    Object.assign(deleteBtn.style, {
+      position: 'absolute',
+      top: '5px',
+      right: '5px',
+      width: '24px',        // Un po' più grande per essere cliccabile
+      height: '24px',
+      backgroundColor: '--var(lgrey)', // Il tuo rosso
+      color: 'white',
+      borderRadius: '0 0 0 4px',
+      fontFamily: 'Pixelify Sans, system-ui',
+      fontWeight: 'normal',
+      fontSize: '20px',
+      lineHeight: '22px',   // Centratura verticale manuale
+      textAlign: 'center',
+      cursor: 'pointer',
+      zIndex: '10',
+      userSelect: 'none'
     });
+
+    deleteBtn.addEventListener('mouseenter', () => {
+      deleteBtn.style.backgroundColor = '--var(dgrey)'; // Rosso acceso
+      deleteBtn.style.transform = 'scale(1.2)';
+    });
+    deleteBtn.addEventListener('mouseleave', () => {
+      deleteBtn.style.backgroundColor = '--var(lgrey)'; // Rosso base
+      deleteBtn.style.transform = 'scale(1)';
+    });
+
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      region.remove();
+
+      if (this.currentRegion === region) {
+        this.currentRegion = null;
+      }
+    });
+
+    regionElement.appendChild(deleteBtn);
+
+    if (regionElement) {
+      regionElement.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        regionElement.style.border = "2px solid white";
+      });
+
+      region.on("dblclick", (e) => {
+        e.stopPropagation();
+        document.getElementById("loop-button").click();
+        this.setCurrentRegion(region);
+      });
+    }
   }
 
   handleRegionUpdated(region) {

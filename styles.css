@@ -1,15 +1,21 @@
 :root {
   /* --- MANOPOLE MASTER (Cambia queste per ricolorare tutto!) --- */
-  --base-hue: 42; /* 0=Rosso, 120=Verde, 205=Azzurro Sci-Fi, 260=Viola */
-  --base-sat: 12%; /* 0% = Grigio neutro. Aumenta per più colore */
+  --base-hue: 42;
+  /* 0=Rosso, 120=Verde, 205=Azzurro Sci-Fi, 260=Viola */
+  --base-sat: 12%;
+  /* 0% = Grigio neutro. Aumenta per più colore */
 
   /* --- COLORI BASE --- */
   /* Nota: Usiamo hsl() per iniettare la tinta azzurra nei grigi */
 
-  --lgrey: hsl(var(--base-hue), var(--base-sat), 50%); /* ex #808080 */
-  --llgrey: hsl(var(--base-hue), var(--base-sat), 80%); /* ex #808080 */
-  --dgrey: hsl(var(--base-hue), var(--base-sat), 13%); /* ex #222 */
-  --wavec: #fdf7e9; /* Questo è il colore della waveform, lo lascerei caldo per contrasto */
+  --lgrey: hsl(var(--base-hue), var(--base-sat), 50%);
+  /* ex #808080 */
+  --llgrey: hsl(var(--base-hue), var(--base-sat), 80%);
+  /* ex #808080 */
+  --dgrey: hsl(var(--base-hue), var(--base-sat), 13%);
+  /* ex #222 */
+  --wavec: #fdf7e9;
+  /* Questo è il colore della waveform, lo lascerei caldo per contrasto */
 
   /* --- NEUTRI & SFONDI (Scala Tonalizzata) --- */
   --black: hsl(var(--base-hue), var(--base-sat), 10%);
@@ -26,14 +32,16 @@
   --slot-bg: hsl(var(--base-hue), var(--base-sat), 4%);
   --slot-border: hsl(var(--base-hue), var(--base-sat), 20%);
 
-  --floppy-plastic: hsl(var(--base-hue), var(--base-sat), 80%); /* ex #ccc */
-  --floppy-hover: hsl(var(--base-hue), var(--base-sat), 87%); /* ex #ddd */
-  --floppy-border: hsl(var(--base-hue), var(--base-sat), 60%); /* ex #999 */
-  --floppy-label-text: hsl(
-    var(--base-hue),
-    100%,
-    5%
-  ); /* Nero quasi puro ma freddo */
+  --floppy-plastic: hsl(var(--base-hue), var(--base-sat), 80%);
+  /* ex #ccc */
+  --floppy-hover: hsl(var(--base-hue), var(--base-sat), 87%);
+  /* ex #ddd */
+  --floppy-border: hsl(var(--base-hue), var(--base-sat), 60%);
+  /* ex #999 */
+  --floppy-label-text: hsl(var(--base-hue),
+      100%,
+      5%);
+  /* Nero quasi puro ma freddo */
 
   --shutter-border: hsl(var(--base-hue), var(--base-sat), 33%);
   --shutter-grad-dark: hsl(var(--base-hue), var(--base-sat), 53%);
@@ -63,8 +71,10 @@
   --glass-border: hsla(var(--base-hue), 20%, 80%, 0.2);
 
   /* Manopole Master per i Pad */
-  --pad-sat: 35%; /* Molto saturi, come LED accesi */
-  --pad-light: 55%; /* Luminosità media per sembrare solidi */
+  --pad-sat: 35%;
+  /* Molto saturi, come LED accesi */
+  --pad-light: 55%;
+  /* Luminosità media per sembrare solidi */
 
   /* 1. ROSSO (Kick / Rec) - Un rosso caldo, non rosato */
   --color-red: hsl(5, var(--pad-sat), var(--pad-light));
@@ -73,11 +83,10 @@
   --color-ambra: hsl(35, var(--pad-sat), var(--pad-light));
 
   /* 3. VERDE (HiHat / Play) - Un verde prato "elettrico", non acido */
-  --color-green: hsl(
-    110,
-    var(--pad-sat),
-    50%
-  ); /* (50% Light perché il verde è già molto luminoso per l'occhio umano) */
+  --color-green: hsl(110,
+      var(--pad-sat),
+      50%);
+  /* (50% Light perché il verde è già molto luminoso per l'occhio umano) */
 
   /* 4. BLU (Bass / FX) - Un azzurro "Avionics" o Commodore */
   --color-blu: hsl(205, var(--pad-sat), var(--pad-light));
@@ -85,11 +94,9 @@
 
 body {
   background: var(--bg-body);
-  background: linear-gradient(
-    90deg,
-    var(--bg-grad-start) 0%,
-    var(--bg-grad-end) 100%
-  );
+  background: linear-gradient(90deg,
+      var(--bg-grad-start) 0%,
+      var(--bg-grad-end) 100%);
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -105,13 +112,15 @@ body {
 
 /* Binario (Track) - Lo sfondo su cui scorre */
 .banks-content::-webkit-scrollbar-track {
-  background: var(--dgrey); /* Il colore scuro "incassato" */
+  background: var(--dgrey);
+  /* Il colore scuro "incassato" */
   border-radius: 4px;
 }
 
 /* Maniglia (Thumb) - La parte che trascini */
 .banks-content::-webkit-scrollbar-thumb {
-  background: var(--lgrey); /* Il colore della scocca */
+  background: var(--lgrey);
+  /* Il colore della scocca */
   border: 1px solid var(--dgrey);
   border-radius: 4px;
 }
@@ -171,13 +180,16 @@ body {
   transition: 100ms ease-in;
   color: var(--white);
 }
+
 .old-button:hover {
   cursor: pointer;
 }
+
 .old-button:focus-visible {
   outline-offset: 12px;
   outline: 2px dotted var(--black);
 }
+
 .old-button:active {
   box-shadow: 2px 2px var(--black);
   transform: scale(0.99);
@@ -487,12 +499,10 @@ body {
 .floppy-shutter {
   width: 15px;
   height: 20px;
-  background: linear-gradient(
-    90deg,
-    var(--shutter-grad-dark),
-    var(--shutter-grad-light),
-    var(--shutter-grad-dark)
-  );
+  background: linear-gradient(90deg,
+      var(--shutter-grad-dark),
+      var(--shutter-grad-light),
+      var(--shutter-grad-dark));
   border: 1px solid var(--shutter-border);
   border-radius: 1px;
 }
@@ -536,11 +546,13 @@ body {
   grid-template-columns: 1fr 1fr;
   /* Le righe si creano automaticamente con l'altezza necessaria */
   grid-auto-rows: min-content;
-  gap: 10px; /* Spazio tra i pad */
+  gap: 10px;
+  /* Spazio tra i pad */
 
   /* 2. GESTIONE SPAZIO E SCROLL */
   padding: 10px;
-  box-sizing: border-box; /* Include il padding nei calcoli di larghezza */
+  box-sizing: border-box;
+  /* Include il padding nei calcoli di larghezza */
 
   /* Occupa tutto lo spazio disponibile nel genitore */
   height: 73%;
@@ -550,7 +562,8 @@ body {
 
   /* Abilita lo scroll verticale SOLO se i pad superano l'altezza */
   overflow-y: auto;
-  overflow-x: hidden; /* Evita scroll orizzontali accidentali */
+  overflow-x: hidden;
+  /* Evita scroll orizzontali accidentali */
 }
 
 .sample-pad {
@@ -581,4 +594,55 @@ body {
   cursor: grabbing;
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px var(--black);
+}
+
+.region-delete-btn {
+  /* POSIZIONAMENTO ASSOLUTO RISPETTO ALLA REGIONE */
+  position: absolute;
+  top: 0;
+  right: 0;
+
+  /* DIMENSIONI */
+  width: 24px;
+  height: 24px;
+
+  /* STILE GRAFICO */
+  background-color: var(--color-kick);
+  /* Rosso Retro */
+  color: var(--white);
+  font-family: monospace;
+  font-size: 20px;
+  line-height: 22px;
+  text-align: center;
+  font-weight: bold;
+  cursor: pointer;
+
+  /* IMPORTANTE: Assicura che stia sopra al cursore e alle maniglie */
+  z-index: 1000 !important;
+
+  /* INTERAZIONE */
+  /* Lo nascondiamo di default */
+  opacity: 0;
+  pointer-events: none;
+  /* Non cliccabile se invisibile */
+  transition: opacity 0.2s ease;
+
+  /* Bordo stondato per stile */
+  border-radius: 0 0 0 4px;
+}
+
+/* QUANDO IL MOUSE ENTRA NELLA REGIONE */
+/* [data-region-id] è il selettore universale per le regioni di Wavesurfer */
+[data-region-id]:hover .region-delete-btn {
+  opacity: 1;
+  /* Diventa visibile */
+  pointer-events: all;
+  /* Diventa cliccabile */
+}
+
+/* HOVER SUL BOTTONE STESSO */
+.region-delete-btn:hover {
+  background-color: #ff0000;
+  /* Rosso acceso */
+  transform: scale(1.1);
 }
