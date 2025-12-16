@@ -3,6 +3,7 @@ import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions
 import BeatDetect from "./BeatDetect.js";
 
 import { eqBands } from "./audioglobal.js";
+import { bufferToWave } from "./audioglobal.js";
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
@@ -384,22 +385,6 @@ export default class AudioPlayer {
   }
 
   addRegion() {
-    /*     if (!this.wavesurfer.getDuration()) return;
-    
-        // Crea una regione di default
-        const duration = this.wavesurfer.getDuration();
-        const start = duration * 0.2;
-        const end = duration * 0.6;
-    
-        const region = this.wavesurfer.addRegion({
-          start: start,
-          end: end,
-          color: "rgba(255, 0, 0, 0.1)",
-          drag: true,
-          resize: true,
-        });
-    
-        this.regions.push(region); */
   }
 
   handleRegionCreated(region) {
@@ -462,6 +447,41 @@ export default class AudioPlayer {
         e.stopPropagation();
         document.getElementById("loop-button").click();
         this.setCurrentRegion(region);
+      });
+
+      // --- LOGICA DROP EFFETTI ---
+
+      // Quando passi sopra con l'effetto
+      regionElement.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Feedback visivo (diventa biancastro)
+        regionElement.style.backgroundColor = "rgba(255, 255, 255, 0.5)";
+      });
+
+      // Quando esci senza lasciare
+      regionElement.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Torna al colore normale
+        regionElement.style.backgroundColor = region.color;
+      });
+
+      // Quando RILASCI l'effetto
+      regionElement.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const effectType = e.dataTransfer.getData("effectType");
+
+        if (effectType) {
+          console.log(`Applicando effetto: ${effectType}`);
+          // Flash Verde di conferma
+          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.8)";
+
+          // Applica l'effetto
+          this.applyEffectToRegion(region, effectType);
+        }
       });
     }
   }
@@ -721,7 +741,7 @@ export default class AudioPlayer {
       }
     });
   }
-  
+
   trimAudio() {
     if (!this.originalBuffer || !this.trimUI) return;
 
@@ -795,4 +815,36 @@ export default class AudioPlayer {
     this.wavesurfer.load(newAudioURL);
   }
 
+  applyEffectToRegion(region, type) {
+    if (!this.originalBuffer) return;
+
+    const buffer = this.originalBuffer;
+    // Calcola i frame esatti in base alla posizione della regione
+    const startFrame = Math.floor(region.start * buffer.sampleRate);
+    const endFrame = Math.floor(region.end * buffer.sampleRate);
+    const length = endFrame - startFrame;
+
+    if (length <= 0) return;
+
+    // Modifica diretta del buffer
+    if (type === "reverse") {
+      for (let i = 0; i < buffer.numberOfChannels; i++) {
+        const channelData = buffer.getChannelData(i);
+
+        // Estrai il pezzo selezionato
+        const segment = channelData.subarray(startFrame, endFrame);
+
+        // Creiamo una copia per invertire senza rompere i puntatori
+        const reversedSegment = new Float32Array(segment);
+        reversedSegment.reverse();
+
+        // Incolla il pezzo invertito al posto dell'originale
+        channelData.set(reversedSegment, startFrame);
+      }
+    }
+    // (Qui puoi aggiungere altri if per altri effetti)
+
+    // Ricarica il player con il buffer aggiornato
+    this.reloadBuffer(buffer);
+  }
 }
