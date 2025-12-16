@@ -3,6 +3,7 @@ import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions
 import BeatDetect from "./BeatDetect.js";
 
 import { eqBands } from "./audioglobal.js";
+import { bufferToWave } from "./audioglobal.js";
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
@@ -20,6 +21,9 @@ export default class AudioPlayer {
     this.currentAudioURL = "";
     this.originalBuffer = null;
     this.bpm = 0;
+    this.history = [];
+    this.redoStack = [];
+    this.maxHistory = 10;
 
     // Beat detection config structure
     this.beatDetect = new BeatDetect({
@@ -195,16 +199,6 @@ export default class AudioPlayer {
 
     document.getElementById("loop-button").addEventListener("click", () => {
       if (!this.isLooping) {
-        /*  this.regions.addRegion({
-          start: this.wavesurfer.getCurrentTime(),
-          end: this.wavesurfer.getCurrentTime() + (60 / this.bpm) * 4,
-          loop: true,
-          color: "rgba(165, 165, 165, 0.3)",
-          handleStyle: {
-            left: "rgba(0, 150, 255, 0.9)",
-            right: "rgba(0, 150, 255, 0.9)",
-          },
-        }); */
       } else {
         this.regions.clearRegions();
       }
@@ -255,9 +249,23 @@ export default class AudioPlayer {
       if (e.key.toLowerCase() === " ") {
         this.wavesurfer.playPause();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        this.undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        this.redo();
+      }
     });
 
     document.getElementById("bpm-led").addEventListener("click", () => { });
+
+    document.getElementById('trim-btn').addEventListener('click', () => {
+      this.trimAudio();
+    });
+
+
 
     // Drag and drop audio file logic
     const dropArea = document.getElementById("waveform");
@@ -281,7 +289,7 @@ export default class AudioPlayer {
       if (type === "sample" && url) {
         this.wavesurfer.load(url);
         this.currentAudioURL = url;
-      } else if (e.dataTransfer.files > 0) {
+      } else if (e.dataTransfer.files.length > 0) {
         const file = e.dataTransfer.files[0];
         if (!file) return;
 
@@ -292,6 +300,13 @@ export default class AudioPlayer {
     });
   }
 
+  /**
+   *
+   *
+   * @param {*} file
+   * @return {*} 
+   * @memberof AudioPlayer
+   */
   async loadAudioFile(file) {
     if (!file) return;
 
@@ -300,15 +315,6 @@ export default class AudioPlayer {
     } catch (error) { }
   }
 
-  play() { }
-
-  pause() { }
-
-  stop() { }
-
-  updatePlaybackPosition() { }
-
-  handleSeek(progress) { }
 
   handleInteraction() {
     this.wavesurfer.play();
@@ -427,7 +433,6 @@ export default class AudioPlayer {
     }
   }
 
-  // Metodo per rimuovere il loop
   clearLoop() {
     this.currentRegion = null;
     this.regions.forEach((region) => {
@@ -515,10 +520,8 @@ export default class AudioPlayer {
   }
 
   createMarker(startTime) {
-    // Calcoliamo una durata di default (es. 1 secondo o 1 battuta in base ai BPM)
     const duration = 0;
 
-    // Aggiungi la regione
     const region = this.regions.addRegion({
       start: startTime,
       end: startTime + duration,
@@ -527,4 +530,40 @@ export default class AudioPlayer {
       resize: true,
     });
   }
+
+  addToHistory(url) {
+    this.history.push(url);
+    if (this.history.length > this.maxHistory) this.history.shift();
+
+    this.redoStack = [];
+    console.log("History saved. Steps:", this.history.length);
+  }
+
+  undo() {
+    if (this.history.length === 0) return;
+
+    this.redoStack.push(this.currentAudioURL);
+
+    const previousUrl = this.history.pop();
+
+    console.log("Undoing...");
+    this.wavesurfer.load(previousUrl);
+    this.currentAudioURL = previousUrl;
+
+    this.regions.clearRegions();
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return;
+
+    this.history.push(this.currentAudioURL);
+
+    const nextUrl = this.redoStack.pop();
+
+    console.log("Redoing...");
+    this.wavesurfer.load(nextUrl);
+    this.currentAudioURL = nextUrl;
+  }
+
+
 }
