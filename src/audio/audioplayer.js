@@ -3,15 +3,17 @@ import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions
 import BeatDetect from "./BeatDetect.js";
 
 import { eqBands } from "./audioglobal.js";
-import { bufferToWave } from "./audioglobal.js";
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
-      window.webkitAudioContext)();
+      window.webkitAudioContext)({
+        sampleRate: 44100,
+        latencyHint: 'interactive'
+      });
 
     // Wavesurfer variables
     this.wavesurfer = null;
-    this.regions = RegionsPlugin.create();
+    this.regions = null;
     this.currentRegion = null;
     this.filters = [];
 
@@ -50,7 +52,15 @@ export default class AudioPlayer {
    * @memberof AudioPlayer
    */
   initWaveSurfer() {
-    //Create and config wavesufer main obj
+
+    if (this.wavesurfer) {
+      this.wavesurfer.destroy();
+      this.wavesurfer = null;
+    }
+
+    this.regions = RegionsPlugin.create(); // Ricrea il plugin regioni
+    this.eqInitialized = false;
+
     this.wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#ccc",
@@ -61,7 +71,6 @@ export default class AudioPlayer {
       audioContext: this.audioContext,
     });
 
-    // 'decode' -> When audio is loaded, then get data
     this.wavesurfer.on("decode", () => {
       const buffer = this.wavesurfer.getDecodedData();
       if (buffer) {
@@ -71,27 +80,18 @@ export default class AudioPlayer {
       }
     });
 
-    // 'ready' -> When audio is ready
     this.wavesurfer.on("ready", async () => {
       this.initEqualizer();
+      this.createTrimUI();
       await this.detectBPM();
       document.getElementById("plus-wrapper").remove();
       this.regions.enableDragSelection({
         color: "rgba(165, 165, 165, 0.3)",
       });
+      this.initTrimCurtains();
     });
 
-    this.wavesurfer.on("click", (relativeX) => {
-      /*       const isPlaying = this.wavesurfer.isPlaying();
-
-      if (isPlaying) {
-      } else {
-        const duration = this.wavesurfer.getDuration();
-        const timestamp = duration * relativeX;
-
-        this.createMarker(timestamp);
-      } */
-    });
+    this.wavesurfer.on("click", (relativeX) => { });
 
     this.wavesurfer.on("seek", (progress) => {
       this.handleSeek(progress);
@@ -102,18 +102,25 @@ export default class AudioPlayer {
     });
 
     this.regions.on("region-created", (region) => {
+      // Ignora le regioni "tenda" (left-curtain e right-curtain)
+      if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionCreated(region);
     });
 
     this.wavesurfer.on("region-updated", (region) => {
+      // Se muovi le tende, aggiorna solo la logica interna se necessario
+      if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionUpdated(region);
     });
 
     this.wavesurfer.on("region-click", (region, e) => {
+      // Le tende non devono essere cliccabili per la selezione loop
+      if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionClick(region, e);
     });
 
     this.regions.on("region-in", (region) => {
+      if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.currentRegion = region;
     });
 
@@ -172,6 +179,62 @@ export default class AudioPlayer {
     }
     this.initEqualizer();
     return Promise.resolve();
+  }
+
+  initTrimCurtains() {
+    const duration = this.wavesurfer.getDuration();
+    // Colore scuro semi-trasparente per le zone escluse
+    const shadowColor = "rgba(0, 0, 0, 0.65)";
+    // Stile base della linea della handle (il resto lo facciamo in CSS)
+    const handleColor = "var(--color-red)";
+
+    // Pulisci le vecchie tende
+    const currentRegions = this.regions.getRegions();
+    currentRegions.forEach(r => {
+      if (r.id === "left-curtain" || r.id === "right-curtain") {
+        r.remove();
+      }
+    });
+
+    // 1. Tenda Sinistra (L'ombra parte da 0 e finisce dove inizia la selezione)
+    this.leftCurtain = this.regions.addRegion({
+      id: "left-curtain",
+      start: 0,
+      end: 0, // Inizia chiusa
+      color: shadowColor,
+      drag: false,   // Non spostare l'intera regione
+      resize: true,  // Permetti ridimensionamento
+      loop: false,
+      handleStyle: {
+        left: { display: "none" }, // Nessuna handle a sinistra (è bloccata a 0)
+        right: {
+          backgroundColor: handleColor,
+          width: "4px", // Linea sottile
+          opacity: "1",
+          zIndex: "10"
+        }
+      }
+    });
+
+    // 2. Tenda Destra (L'ombra inizia dove finisce la selezione e va fino alla fine)
+    this.rightCurtain = this.regions.addRegion({
+      id: "right-curtain",
+      start: duration,
+      end: duration, // Inizia chiusa
+      color: shadowColor,
+      drag: false,
+      resize: true,
+      loop: false,
+      handleStyle: {
+        left: {
+          backgroundColor: handleColor,
+          width: "4px", // Linea sottile
+          opacity: "1",
+          zIndex: "10"
+        },
+        right: { display: "none" } // Nessuna handle a destra (è bloccata alla fine)
+      }
+    });
   }
 
   /**
@@ -340,7 +403,7 @@ export default class AudioPlayer {
   }
 
   handleRegionCreated(region) {
-    console.log("DEBUG");
+    if (region.id === "trim-region") return;
 
     const regionElement = region.element;
     console.log(region.element);
@@ -408,9 +471,7 @@ export default class AudioPlayer {
   }
 
   handleRegionClick(region, e) {
-    this.handleRegionClick(region, e);
     e.stopPropagation();
-    // Imposta come regione corrente al click
     this.setCurrentRegion(region);
   }
 
@@ -565,5 +626,173 @@ export default class AudioPlayer {
     this.currentAudioURL = nextUrl;
   }
 
+  createTrimUI() {
+    const container = document.getElementById("waveform");
+
+    // Pulizia vecchi elementi se ricarichi il file
+    container.querySelectorAll('.trim-ui-element').forEach(el => el.remove());
+
+    // 1. Inizializza stato UI se non esiste
+    this.trimUI = { container };
+
+    // 2. Crea Overlay Sinistro
+    this.trimUI.leftOverlay = document.createElement('div');
+    this.trimUI.leftOverlay.className = 'trim-overlay trim-ui-element';
+    this.trimUI.leftOverlay.style.left = '0';
+    this.trimUI.leftOverlay.style.width = '0%';
+
+    // 3. Crea Overlay Destro
+    this.trimUI.rightOverlay = document.createElement('div');
+    this.trimUI.rightOverlay.className = 'trim-overlay trim-ui-element';
+    this.trimUI.rightOverlay.style.right = '0';
+    this.trimUI.rightOverlay.style.width = '0%';
+
+    // 4. Crea Maniglia START
+    this.trimUI.leftHandle = document.createElement('div');
+    this.trimUI.leftHandle.className = 'trim-handle trim-handle-left trim-ui-element';
+    this.trimUI.leftHandle.innerText = "|";
+    this.trimUI.leftHandle.style.left = '0%';
+
+    // 5. Crea Maniglia END
+    this.trimUI.rightHandle = document.createElement('div');
+    this.trimUI.rightHandle.className = 'trim-handle trim-handle-right trim-ui-element';
+    this.trimUI.rightHandle.innerText = "|";
+    this.trimUI.rightHandle.style.left = '100%';
+    this.trimUI.rightHandle.style.transform = "translateX(-100%)"; // Sposta indietro della sua larghezza per stare dentro
+
+    // Append al DOM
+    container.appendChild(this.trimUI.leftOverlay);
+    container.appendChild(this.trimUI.rightOverlay);
+    container.appendChild(this.trimUI.leftHandle);
+    container.appendChild(this.trimUI.rightHandle);
+
+    // Attiva Logica Drag
+    this.enableDrag(this.trimUI.leftHandle, 'left');
+    this.enableDrag(this.trimUI.rightHandle, 'right');
+  }
+
+  enableDrag(element, type) {
+    let isDragging = false;
+
+    // Inizio Drag
+    element.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      e.stopPropagation(); // Ferma il click di WaveSurfer
+      document.body.style.cursor = 'col-resize';
+    });
+
+    // Movimento Mouse (Global window per non perdere il focus uscendo dal div)
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+
+      const rect = this.trimUI.container.getBoundingClientRect();
+      let x = e.clientX - rect.left;
+
+      // Limiti (0 -> Width)
+      if (x < 0) x = 0;
+      if (x > rect.width) x = rect.width;
+
+      const percentage = (x / rect.width) * 100;
+
+      if (type === 'left') {
+        // Non superare la maniglia destra (con un margine di sicurezza 5%)
+        const rightPos = parseFloat(this.trimUI.rightHandle.style.left) || 100;
+        if (percentage >= rightPos - 2) return;
+
+        element.style.left = percentage + '%';
+        this.trimUI.leftOverlay.style.width = percentage + '%';
+      } else {
+        // Non superare la maniglia sinistra
+        const leftPos = parseFloat(this.trimUI.leftHandle.style.left) || 0;
+        if (percentage <= leftPos + 2) return;
+
+        element.style.left = percentage + '%';
+        // Calcolo larghezza overlay destro (da destra verso sinistra)
+        this.trimUI.rightOverlay.style.width = (100 - percentage) + '%';
+      }
+    });
+
+    // Fine Drag
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        document.body.style.cursor = 'default';
+      }
+    });
+  }
+  
+  trimAudio() {
+    if (!this.originalBuffer || !this.trimUI) return;
+
+    // 1. CALCOLO COORDINATE (Start/End)
+    // Prendo i riferimenti visivi dalle maniglie HTML
+    const containerRect = this.trimUI.container.getBoundingClientRect();
+    const leftHandleRect = this.trimUI.leftHandle.getBoundingClientRect();
+    const rightHandleRect = this.trimUI.rightHandle.getBoundingClientRect();
+
+    const startX = leftHandleRect.left - containerRect.left;
+    const endX = rightHandleRect.left - containerRect.left;
+
+    let startRatio = startX / containerRect.width;
+    let endRatio = endX / containerRect.width;
+
+    // Clamp per sicurezza
+    startRatio = Math.max(0, startRatio);
+    endRatio = Math.min(1, endRatio);
+
+    if (startRatio >= endRatio) return;
+
+    // 2. PREPARAZIONE DATI (La logica del tuo snippet)
+    const originalBuffer = this.originalBuffer;
+    const sampleRate = originalBuffer.sampleRate;
+    const fullDuration = originalBuffer.duration;
+
+    const startTime = startRatio * fullDuration;
+    const endTime = endRatio * fullDuration;
+
+    // Calcolo indici esatti (Sample-accurate)
+    const startBufferIndex = Math.floor(startTime * sampleRate);
+    const endBufferIndex = Math.floor(endTime * sampleRate);
+    const trimmedBufferLength = endBufferIndex - startBufferIndex;
+
+    if (trimmedBufferLength <= 0) return;
+
+    // 3. CREAZIONE BUFFER VUOTO
+    const copiedBuffer = this.audioContext.createBuffer(
+      originalBuffer.numberOfChannels,
+      trimmedBufferLength,
+      sampleRate
+    );
+
+    // 4. CORE LOGIC: I CICLI FOR "PURE DATA COPY" (Richiesti da te)
+    // Copiamo byte per byte senza conversioni strane
+    for (let i = 0; i < originalBuffer.numberOfChannels; i++) {
+      let originalChanData = originalBuffer.getChannelData(i);
+      let copiedChanData = copiedBuffer.getChannelData(i);
+
+      for (let j = startBufferIndex, k = 0; j < endBufferIndex; j++, k++) {
+        copiedChanData[k] = originalChanData[j];
+      }
+    }
+
+    // 5. CARICAMENTO (Adattamento obbligato per WaveSurfer v7)
+    // WaveSurfer v7 NON ha più `loadDecodedBuffer`. Accetta solo Blob o URL.
+    // Usiamo bufferToWave SOLO come "ponte" trasparente per far contento WaveSurfer.
+    const blob = bufferToWave(copiedBuffer, trimmedBufferLength);
+    const newAudioURL = URL.createObjectURL(blob);
+
+    // Aggiorniamo i riferimenti
+    this.originalBuffer = copiedBuffer;
+    this.currentAudioURL = newAudioURL;
+
+    // Reset UI
+    this.regions.clearRegions();
+    this.createTrimUI();
+
+    // Carichiamo il risultato
+    console.log("Loading trimmed buffer (Raw Copy Method)...");
+    this.wavesurfer.load(newAudioURL);
+  }
 
 }

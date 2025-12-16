@@ -139,12 +139,14 @@ body {
 }
 
 .sampler {
-  display: grid;
-  padding: 5px;
+display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
+  flex-direction: column; /* Impila elementi uno sopra l'altro */
+  padding: 5px; /* RIMUOVI IL PADDING: Questo rimuove lo spazio attorno */
   background-color: var(--lgrey);
   width: 800px;
   height: 450px;
   position: relative;
+  overflow: hidden;
 }
 
 .commands {
@@ -225,9 +227,14 @@ body {
 }
 
 #waveform {
-  background: var(--dgrey);
-  min-height: 100px;
-  max-height: 3000px;
+  position: relative; /* Fondamentale per le handle del Trim */
+  background: var(--dgrey); /* Sfondo scuro */
+  width: 100%;
+  
+  /* Flex magic: occupa tutto lo spazio rimanente togliendo l'altezza fissa dell'EQ */
+  
+  /* Questo crea la linea di separazione orizzontale tra Wave ed EQ */
+  box-sizing: border-box; /* Include il bordo nei calcoli */
 }
 
 .border-shadow {
@@ -275,7 +282,11 @@ body {
 }
 
 .eq-grid {
-  height: 150px;
+  height: 195px; /* Altezza fissa per l'EQ */
+  width: 100%;
+  background-color: var(--dgrey); /* Assicura che lo sfondo sia coerente */
+  position: relative;
+  top: 5px;
 }
 
 .eq-band {
@@ -645,4 +656,57 @@ body {
   background-color: #ff0000;
   /* Rosso acceso */
   transform: scale(1.1);
+}
+
+/* --- AGGIUNTA TRIM UI --- */
+
+#waveform {
+  position: relative !important;
+  overflow: hidden;
+}
+
+.trim-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 15;
+  pointer-events: none;
+}
+
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background-color: color-mix(in srgb, var(--lgrey), transparent 80%);
+  border: 2px solid var(--black, #000);
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+  cursor: col-resize;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Pixelify Sans", system-ui;
+  font-weight: bold;
+  font-size: 24px;
+  color: var(--black, #000);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  user-select: none;
+}
+
+.trim-handle:hover {
+  background-color: color-mix(in srgb, var(--lgrey), transparent 60%);
+}
+
+.trim-handle-left {
+  border-radius: 0 4px 4px 0;
+  left: 0;
+}
+
+.trim-handle-right {
+  border-radius: 4px 0 0 4px;
+  right: 0;
 }
