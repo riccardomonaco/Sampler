@@ -2,8 +2,7 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
 import BeatDetect from "./BeatDetect.js";
 
-import { eqBands } from "./audioglobal.js";
-import { bufferToWave } from "./audioglobal.js";
+import { eqBands, bufferToWave, reverseRange, sliceBuffer } from "./AudioUtils.js";
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
@@ -468,19 +467,24 @@ export default class AudioPlayer {
       });
 
       // Quando RILASCI l'effetto
-      regionElement.addEventListener('drop', (e) => {
+      // --- LOGICA DROP EFFETTI ---
+      regionElement.addEventListener('drop', async (e) => {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // Importante: ferma il drop qui, non farlo salire al waveform
 
+        // Recupera il tipo di effetto (impostato nel dragstart dell'icona effetto)
+        // Assumiamo che tu faccia e.dataTransfer.setData("effectType", "reverse") nel tuo pannello effetti
         const effectType = e.dataTransfer.getData("effectType");
 
-        if (effectType) {
-          console.log(`Applicando effetto: ${effectType}`);
-          // Flash Verde di conferma
-          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.8)";
+        if (effectType === "reverse") {
+          console.log(`Applicando Reverse alla regione: ${region.start.toFixed(2)}s - ${region.end.toFixed(2)}s`);
 
-          // Applica l'effetto
-          this.applyEffectToRegion(region, effectType);
+          // Flash visivo di conferma
+          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.5)";
+          setTimeout(() => regionElement.style.backgroundColor = region.color, 300);
+
+          // Esegui l'effetto
+          await this.applyRegionEffect(region.start, region.end, "reverse");
         }
       });
     }
