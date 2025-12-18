@@ -2,7 +2,7 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
 import BeatDetect from "./BeatDetect.js";
 
-import { eqBands, bufferToWave, reverseRange, sliceBuffer } from "./AudioUtils.js";
+import { eqBands, bufferToWave, reverseRange, sliceBuffer, soundBanks } from "./AudioUtils.js";
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
