@@ -1,5 +1,4 @@
-import { eqBands } from "../audio/audioglobal.js";
-import { soundBanks } from "../audio/audioglobal.js";
+import { eqBands, soundBanks } from "../audio/AudioUtils";
 
 const bankSelect = document.getElementById("banks"); // La Select
 const banksContent = document.querySelector(".banks-content");
