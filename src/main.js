@@ -1,6 +1,6 @@
-import createEqualizer from "./ui/ui.js";
-import { initBankMenu } from "./ui/ui.js";
-import AudioPlayer from "./audio/audioplayer.js";
+import createEqualizer from "./ui/Ui.js";
+import { initBankMenu } from "./ui/Ui.js";
+import AudioPlayer from "./audio/AudioPlayer.js";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "./firebase.js";
 

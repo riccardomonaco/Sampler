@@ -95,9 +95,12 @@ export default class AudioPlayer {
       this.initEqualizer();
       this.createTrimUI();
       await this.detectBPM();
-      document.getElementById("plus-wrapper").remove();
+      const plusWrapper = document.getElementById("plus-wrapper");
+      if (plusWrapper) {
+        plusWrapper.remove();
+      }
       this.regions.enableDragSelection({
-        color: "rgba(165, 165, 165, 0.3)",
+        color: "rgba(165, 165, 165, 0.1)",
       });
       this.initTrimCurtains();
     });
@@ -288,7 +291,7 @@ export default class AudioPlayer {
             this.currentRegion.start +
             (this.currentRegion.end - this.currentRegion.start) * 2,
           loop: true,
-          color: "rgba(165, 165, 165, 0.3)",
+          color: "rgba(165, 165, 165, 0.1)",
           handleStyle: {
             left: "rgba(0, 150, 255, 0.9)",
             right: "rgba(0, 150, 255, 0.9)",
@@ -343,6 +346,11 @@ export default class AudioPlayer {
 
     dropArea.addEventListener("dragover", (e) => {
       e.preventDefault();
+
+      const types = e.dataTransfer.types;
+      if (types.includes("effecttype") || types.includes("effectType")) {
+        return;
+      }
       dropArea.classList.add("dragover");
     });
 
@@ -353,6 +361,12 @@ export default class AudioPlayer {
     dropArea.addEventListener("drop", (e) => {
       e.preventDefault();
       dropArea.classList.remove("dragover");
+
+      const effectType = e.dataTransfer.getData("effectType");
+      if (effectType) {
+        // Qui potresti opzionalmente implementare la logica "Applica a tutta la traccia"
+        return;
+      }
 
       const type = e.dataTransfer.getData("type");
       const url = e.dataTransfer.getData("audioUrl");
@@ -371,22 +385,16 @@ export default class AudioPlayer {
     });
 
     document.addEventListener('dragstart', (e) => {
-      // 1. Logga QUALSIASI cosa venga trascinata per vedere se l'evento parte
-      console.log("🔥 Dragstart intercettato su:", e.target);
-
       // 2. Usa .closest() per trovare l'icona anche se clicchi su un bordo o un elemento interno
       const targetIcon = e.target.closest ? e.target.closest('.fx-img') : null;
 
       if (targetIcon) {
         const effect = targetIcon.getAttribute('data-effect');
-        console.log("✅ Trovata icona effetto:", effect);
 
         if (effect) {
           e.dataTransfer.setData("effectType", effect);
           e.dataTransfer.effectAllowed = "copy";
         }
-      } else {
-        console.log("❌ L'elemento trascinato NON è un effetto (.fx-img)");
       }
     });
   }
@@ -431,7 +439,7 @@ export default class AudioPlayer {
       right: '5px',
       width: '24px',        // Un po' più grande per essere cliccabile
       height: '24px',
-      backgroundColor: '--var(lgrey)', // Il tuo rosso
+      backgroundColor: '--var(dgrey)', // Il tuo rosso
       color: 'white',
       borderRadius: '0 0 0 4px',
       fontFamily: 'Pixelify Sans, system-ui',
@@ -467,7 +475,6 @@ export default class AudioPlayer {
     if (regionElement) {
       regionElement.addEventListener("dragover", (e) => {
         e.preventDefault();
-        regionElement.style.border = "2px solid white";
       });
 
       region.on("dblclick", (e) => {
@@ -482,8 +489,9 @@ export default class AudioPlayer {
       regionElement.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        regionElement.style.border = "2px solid rgba(255, 255, 255, 0.5)";
         // Feedback visivo (diventa biancastro)
-        regionElement.style.backgroundColor = "rgba(255, 255, 255, 0.5)";
+        regionElement.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
       });
 
       // Quando esci senza lasciare
@@ -491,32 +499,45 @@ export default class AudioPlayer {
         e.preventDefault();
         e.stopPropagation();
         // Torna al colore normale
+        regionElement.style.border = "0px solid rgba(255, 255, 255, 0.5)";
+
         regionElement.style.backgroundColor = region.color;
       });
 
-      // Quando RILASCI l'effetto
-      // --- LOGICA DROP EFFETTI --- all'interno di handleRegionCreated
+      // --- LOGICA DROP EFFETTI (FIX STUCK HOVER) ---
       regionElement.addEventListener('drop', (e) => {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // Ferma la risalita (giusto)
+
+        // 1. FIX WAVEFORM: Rimuovi la classe dragover dal contenitore padre
+        // Dato che abbiamo fermato la propagazione, il padre non lo sa, quindi glielo togliamo a mano.
+        const dropArea = document.getElementById("waveform");
+        if (dropArea) dropArea.classList.remove("dragover");
+
+        // 2. FIX REGIONE: Resetta immediatamente lo stile "bianco" del dragover
+        regionElement.style.backgroundColor = region.color;
+        regionElement.style.border = "none"; // Se avevi bordi
 
         const effectType = e.dataTransfer.getData("effectType");
-        console.log(effectType);
 
         if (effectType) {
           console.log(`Drop effetto rilevato: ${effectType}`);
 
-          // Flash Verde Feedback
-          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.8)";
-          setTimeout(() => regionElement.style.backgroundColor = region.color, 300);
+          // 3. Feedback Verde (Flash)
+          // Salviamo il colore originale per sicurezza
+          const originalColor = region.color;
+          regionElement.style.backgroundColor = "color-mix(in srgb, var(--lgrey) 30%, transparent)";
+          setTimeout(() => {
+            // Ripristina il colore originale dopo il flash
+            // Nota: Se la regione viene ricreata dal reload, questo potrebbe non servire, ma è sicuro averlo.
+            if (regionElement) regionElement.style.backgroundColor = originalColor;
+          }, 300);
 
-          // SMISTAMENTO EFFETTI
+          // 4. Esegui l'effetto
           if (effectType === "reverse") {
-            // Effetto istantaneo (Matematico)
             this.applyDirectEffect(region, "reverse");
           }
           else if (effectType === "distortion") {
-            // Effetto con Preview (Real-time Knob)
             this.activateRealTimePreview(region, "distortion");
           }
         }
