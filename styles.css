@@ -111,6 +111,25 @@ body {
 }
 
 /* Binario (Track) - Lo sfondo su cui scorre */
+.fx-buttons::-webkit-scrollbar-track {
+  background: var(--dgrey);
+  /* Il colore scuro "incassato" */
+  border-radius: 4px;
+}
+
+/* Maniglia (Thumb) - La parte che trascini */
+.fx-buttons::-webkit-scrollbar-thumb {
+  background: var(--lgrey);
+  /* Il colore della scocca */
+  border: 1px solid var(--dgrey);
+}
+
+/* Larghezza della barra */
+.fx-buttons::-webkit-scrollbar {
+  width: 0px;
+}
+
+/* Binario (Track) - Lo sfondo su cui scorre */
 .banks-content::-webkit-scrollbar-track {
   background: var(--dgrey);
   /* Il colore scuro "incassato" */
@@ -139,9 +158,12 @@ body {
 }
 
 .sampler {
-display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
-  flex-direction: column; /* Impila elementi uno sopra l'altro */
-  padding: 5px; /* RIMUOVI IL PADDING: Questo rimuove lo spazio attorno */
+  display: flex;
+  /* Usa Flexbox invece di Grid per impilare verticalmente */
+  flex-direction: column;
+  /* Impila elementi uno sopra l'altro */
+  padding: 5px;
+  /* RIMUOVI IL PADDING: Questo rimuove lo spazio attorno */
   background-color: var(--lgrey);
   width: 800px;
   height: 450px;
@@ -227,14 +249,17 @@ display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
 }
 
 #waveform {
-  position: relative; /* Fondamentale per le handle del Trim */
-  background: var(--dgrey); /* Sfondo scuro */
+  position: relative;
+  /* Fondamentale per le handle del Trim */
+  background: var(--dgrey);
+  /* Sfondo scuro */
   width: 100%;
-  
+
   /* Flex magic: occupa tutto lo spazio rimanente togliendo l'altezza fissa dell'EQ */
-  
+
   /* Questo crea la linea di separazione orizzontale tra Wave ed EQ */
-  box-sizing: border-box; /* Include il bordo nei calcoli */
+  box-sizing: border-box;
+  /* Include il bordo nei calcoli */
 }
 
 .border-shadow {
@@ -282,9 +307,11 @@ display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
 }
 
 .eq-grid {
-  height: 195px; /* Altezza fissa per l'EQ */
+  height: 195px;
+  /* Altezza fissa per l'EQ */
   width: 100%;
-  background-color: var(--dgrey); /* Assicura che lo sfondo sia coerente */
+  background-color: var(--dgrey);
+  /* Assicura che lo sfondo sia coerente */
   position: relative;
   top: 5px;
 }
@@ -333,9 +360,11 @@ display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
 }
 
 .fx-buttons-wrapper {
+  margin-top: 15px;
+
   background-color: var(--dgrey);
   width: 100%;
-  height: 62%;
+  height: 52%;
 }
 
 .fx-label {
@@ -520,11 +549,28 @@ display: flex; /* Usa Flexbox invece di Grid per impilare verticalmente */
 
 .fx-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Crea esattamente 2 colonne di larghezza uguale (50% e 50%) */
+  grid-template-columns: 1fr;
+  /* Le righe si creano automaticamente con l'altezza necessaria */
+  grid-auto-rows: min-content;
   gap: 10px;
+  /* Spazio tra i pad */
+
+  /* 2. GESTIONE SPAZIO E SCROLL */
   padding: 10px;
-  width: 100%;
   box-sizing: border-box;
+  /* Include il padding nei calcoli di larghezza */
+
+  /* Occupa tutto lo spazio disponibile nel genitore */
+  height: 96%;
+  /* OPPURE: se il genitore non ha altezza fissa, metti qui un max-height:
+     max-height: 400px; 
+  */
+
+  /* Abilita lo scroll verticale SOLO se i pad superano l'altezza */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Evita scroll orizzontali accidentali */
 }
 
 .floppy-first-row {

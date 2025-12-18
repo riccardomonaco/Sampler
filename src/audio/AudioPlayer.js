@@ -2,7 +2,9 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
 import BeatDetect from "./BeatDetect.js";
 
-import { eqBands, bufferToWave, reverseRange, sliceBuffer, soundBanks } from "./AudioUtils.js";
+// AudioPlayer.js - In cima
+import { eqBands, bufferToWave, processRange, sliceBuffer, makeDistortionCurve, soundBanks } from "./AudioUtils.js";
+
 export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
@@ -28,6 +30,12 @@ export default class AudioPlayer {
     this.history = [];
     this.redoStack = [];
     this.maxHistory = 10;
+
+    this.eqInputNode = null;       // Punto di ingresso catena EQ
+    this.previewEffectNode = null; // Nodo effetto temporaneo (es. Distorsione Live)
+    this.activeRegion = null;      // Regione su cui stiamo lavorando
+    this.currentEffectType = null; // Tipo di effetto corrente
+    this.effectParams = {};
 
     // Beat detection config structure
     this.beatDetect = new BeatDetect({
@@ -361,6 +369,26 @@ export default class AudioPlayer {
         this.currentAudioURL = objectUrl;
       }
     });
+
+    document.addEventListener('dragstart', (e) => {
+      // 1. Logga QUALSIASI cosa venga trascinata per vedere se l'evento parte
+      console.log("🔥 Dragstart intercettato su:", e.target);
+
+      // 2. Usa .closest() per trovare l'icona anche se clicchi su un bordo o un elemento interno
+      const targetIcon = e.target.closest ? e.target.closest('.fx-img') : null;
+
+      if (targetIcon) {
+        const effect = targetIcon.getAttribute('data-effect');
+        console.log("✅ Trovata icona effetto:", effect);
+
+        if (effect) {
+          e.dataTransfer.setData("effectType", effect);
+          e.dataTransfer.effectAllowed = "copy";
+        }
+      } else {
+        console.log("❌ L'elemento trascinato NON è un effetto (.fx-img)");
+      }
+    });
   }
 
   /**
@@ -467,24 +495,30 @@ export default class AudioPlayer {
       });
 
       // Quando RILASCI l'effetto
-      // --- LOGICA DROP EFFETTI ---
-      regionElement.addEventListener('drop', async (e) => {
+      // --- LOGICA DROP EFFETTI --- all'interno di handleRegionCreated
+      regionElement.addEventListener('drop', (e) => {
         e.preventDefault();
-        e.stopPropagation(); // Importante: ferma il drop qui, non farlo salire al waveform
+        e.stopPropagation();
 
-        // Recupera il tipo di effetto (impostato nel dragstart dell'icona effetto)
-        // Assumiamo che tu faccia e.dataTransfer.setData("effectType", "reverse") nel tuo pannello effetti
         const effectType = e.dataTransfer.getData("effectType");
+        console.log(effectType);
 
-        if (effectType === "reverse") {
-          console.log(`Applicando Reverse alla regione: ${region.start.toFixed(2)}s - ${region.end.toFixed(2)}s`);
+        if (effectType) {
+          console.log(`Drop effetto rilevato: ${effectType}`);
 
-          // Flash visivo di conferma
-          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.5)";
+          // Flash Verde Feedback
+          regionElement.style.backgroundColor = "rgba(0, 255, 0, 0.8)";
           setTimeout(() => regionElement.style.backgroundColor = region.color, 300);
 
-          // Esegui l'effetto
-          await this.applyRegionEffect(region.start, region.end, "reverse");
+          // SMISTAMENTO EFFETTI
+          if (effectType === "reverse") {
+            // Effetto istantaneo (Matematico)
+            this.applyDirectEffect(region, "reverse");
+          }
+          else if (effectType === "distortion") {
+            // Effetto con Preview (Real-time Knob)
+            this.activateRealTimePreview(region, "distortion");
+          }
         }
       });
     }
@@ -534,23 +568,28 @@ export default class AudioPlayer {
     const audio = this.wavesurfer.getMediaElement();
     if (!audio) return;
 
-    // Assicuriamo che l'audio possa essere processato (CORS)
     audio.crossOrigin = "anonymous";
 
-    // --- FIX: EVITARE DOPPIE CONNESSIONI ---
-    // Se abbiamo già creato i nodi per questo player, NON ricrearli.
-    // Wavesurfer v7 riusa lo stesso elemento <audio>, quindi i nodi restano validi.
-    if (this.eqInitialized && this.mediaNode) {
-      console.log("EQ già inizializzato, salto la creazione dei nodi.");
-      return;
+    // 1. Evita di ricreare nodi se l'EQ è già attivo e i nodi esistono
+    if (this.eqInitialized && this.mediaNode && this.eqInputNode) {
+      // Se c'è un effetto preview attivo, potremmo dover ricollegare, 
+      // ma per sicurezza lasciamo che la logica di disconnessione sotto gestisca tutto se chiamata.
+      // Se tutto è stabile, usciamo.
+      if (!this.previewEffectNode) return;
     }
 
-    // Se arriviamo qui, è la prima volta assoluta. Creiamo la catena.
+    // 2. Crea i nodi base se mancano
     if (!this.mediaNode) {
       this.mediaNode = this.audioContext.createMediaElementSource(audio);
     }
 
-    // Crea i filtri solo se non esistono
+    // Nodo "collo di bottiglia" che entra nell'EQ. 
+    // Source -> [PreviewEffect?] -> EqInputNode -> Filtri -> Speakers
+    if (!this.eqInputNode) {
+      this.eqInputNode = this.audioContext.createGain();
+    }
+
+    // 3. Crea i filtri (se non esistono)
     if (this.filters.length === 0) {
       this.filters = eqBands.map((band) => {
         const filter = this.audioContext.createBiquadFilter();
@@ -560,18 +599,28 @@ export default class AudioPlayer {
         filter.frequency.value = band;
         return filter;
       });
-
-      // Collega i slider (assicurati che this.connectSliders esista e funzioni)
       this.connectSliders();
     }
 
-    // --- COLLEGAMENTI ---
-    // Disconnetti tutto per sicurezza prima di ricollegare
+
+    // 4. DISCONNETTI TUTTO (Reset pulito)
     try { this.mediaNode.disconnect(); } catch (e) { }
+    try { if (this.previewEffectNode) this.previewEffectNode.disconnect(); } catch (e) { }
+    try { this.eqInputNode.disconnect(); } catch (e) { }
     this.filters.forEach(f => { try { f.disconnect(); } catch (e) { } });
 
-    // Ricostruisci la catena: Source -> Filtri -> Destination
-    let currentNode = this.mediaNode;
+    // 5. ROUTING DINAMICO
+    // Se c'è un effetto live (es. Distorsione mentre muovi lo slider), passa di lì
+    if (this.previewEffectNode) {
+      this.mediaNode.connect(this.previewEffectNode);
+      this.previewEffectNode.connect(this.eqInputNode);
+    } else {
+      // Altrimenti vai dritto all'EQ
+      this.mediaNode.connect(this.eqInputNode);
+    }
+
+    // 6. Collega Catena EQ
+    let currentNode = this.eqInputNode;
     this.filters.forEach((filter) => {
       currentNode.connect(filter);
       currentNode = filter;
@@ -580,8 +629,9 @@ export default class AudioPlayer {
     currentNode.connect(this.audioContext.destination);
 
     this.eqInitialized = true;
-    console.log("Equalizzatore collegato correttamente.");
+    console.log("Catena Audio Aggiornata (EQ + Effects Routing)");
   }
+
 
   connectSliders() {
     const sliders = document.querySelectorAll(".slider-eq");
@@ -797,69 +847,224 @@ export default class AudioPlayer {
 
     if (frameCount <= 0) return;
 
-    const trimmedBuffer = this.audioContext.createBuffer(
-      this.originalBuffer.numberOfChannels,
-      frameCount,
-      sampleRate
+    const trimmedBuffer = sliceBuffer(
+      this.originalBuffer,
+      startRatio,
+      endRatio,
+      this.audioContext
     );
 
-    for (let ch = 0; ch < this.originalBuffer.numberOfChannels; ch++) {
-      const channelData = this.originalBuffer.getChannelData(ch);
-      trimmedBuffer.copyToChannel(channelData.slice(startFrame, endFrame), ch);
-    }
+    if (!trimmedBuffer) return;
 
     try {
-      const blob = bufferToWave(trimmedBuffer, frameCount);
-      const newAudioURL = URL.createObjectURL(blob);
+      // Usa il nuovo helper per ricaricare
+      await this.reloadWithBuffer(trimmedBuffer);
 
-      this.originalBuffer = trimmedBuffer;
-      this.currentAudioURL = newAudioURL;
-
-      console.log("Original Buffer Rate:", this.originalBuffer.sampleRate);
-
+      // Reset specifico per il trim
       this.regions.clearRegions();
       this.createTrimUI();
-
-      console.log("Ricaricamento Wavesurfer...");
-      await this.wavesurfer.load(newAudioURL);
-
-      this.initEqualizer();
 
     } catch (e) {
       console.error("Errore Trim:", e);
     }
   }
 
-  applyEffectToRegion(region, type) {
+  // --- GESTIONE EFFETTI ---
+
+  // 1. Applica effetti immediati (Reverse) usando il router di AudioUtils
+  async applyDirectEffect(region, type) {
     if (!this.originalBuffer) return;
 
-    const buffer = this.originalBuffer;
-    // Calcola i frame esatti in base alla posizione della regione
-    const startFrame = Math.floor(region.start * buffer.sampleRate);
-    const endFrame = Math.floor(region.end * buffer.sampleRate);
-    const length = endFrame - startFrame;
+    try {
+      const newBuffer = await processRange(
+        this.originalBuffer,
+        this.audioContext,
+        type,
+        region.start,
+        region.end
+      );
 
-    if (length <= 0) return;
-
-    // Modifica diretta del buffer
-    if (type === "reverse") {
-      for (let i = 0; i < buffer.numberOfChannels; i++) {
-        const channelData = buffer.getChannelData(i);
-
-        // Estrai il pezzo selezionato
-        const segment = channelData.subarray(startFrame, endFrame);
-
-        // Creiamo una copia per invertire senza rompere i puntatori
-        const reversedSegment = new Float32Array(segment);
-        reversedSegment.reverse();
-
-        // Incolla il pezzo invertito al posto dell'originale
-        channelData.set(reversedSegment, startFrame);
-      }
+      if (newBuffer) await this.reloadWithBuffer(newBuffer);
+    } catch (e) {
+      console.error("Errore effetto diretto:", e);
     }
-    // (Qui puoi aggiungere altri if per altri effetti)
+  }
 
-    // Ricarica il player con il buffer aggiornato
-    this.reloadBuffer(buffer);
+  // 2. Attiva la modalità Preview Live (per Distortion, Delay, ecc.)
+  activateRealTimePreview(region, type) {
+    // Pulisci eventuali pannelli aperti
+    this.closeEffectPanel();
+
+    this.activeRegion = region;
+    this.currentEffectType = type;
+    this.effectParams = { amount: 50 }; // Valore default generico
+
+    // Crea il nodo WebAudio per la preview LIVE
+    if (type === 'distortion') {
+      this.previewEffectNode = this.audioContext.createWaveShaper();
+      this.previewEffectNode.curve = makeDistortionCurve(this.effectParams.amount);
+      this.previewEffectNode.oversample = '4x';
+    }
+
+    // Ricollega l'audio: Source -> PreviewNode -> EQ -> Speakers
+    this.eqInitialized = false; // Forza ricalcolo routing
+    this.initEqualizer();
+
+    // Metti in loop la regione per sentire le modifiche
+    region.playLoop();
+
+    // Mostra i controlli a schermo
+    this.createEffectControlsUI(type);
+  }
+
+  // 3. Crea l'interfaccia (Slider e Tasti)
+  createEffectControlsUI(type) {
+    // Assicurati di avere un <div id="effect-controls-container"></div> nel tuo HTML
+    // Se non c'è, lo creiamo al volo appeso al body per test
+    let container = document.getElementById("effect-controls-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "effect-controls-container";
+      container.style.position = "fixed";
+      container.style.bottom = "20px";
+      container.style.left = "50%";
+      container.style.transform = "translateX(-50%)";
+      container.style.backgroundColor = "#222";
+      container.style.padding = "15px";
+      container.style.borderRadius = "8px";
+      container.style.border = "1px solid #444";
+      container.style.color = "white";
+      container.style.zIndex = "1000";
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = "";
+    container.style.display = "block";
+
+    const title = document.createElement("h4");
+    title.innerText = type.toUpperCase();
+    title.style.margin = "0 0 10px 0";
+    container.appendChild(title);
+
+    // --- SLIDER (Knob) ---
+    if (type === 'distortion') {
+      const wrapper = document.createElement("div");
+      wrapper.style.marginBottom = "10px";
+
+      const label = document.createElement("span");
+      label.innerText = "Drive: ";
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = "0";
+      slider.max = "400"; // Più alto = più distorto
+      slider.value = this.effectParams.amount;
+
+      // EVENTO REAL TIME: Modifica il nodo audio mentre muovi
+      slider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        this.effectParams.amount = val;
+
+        if (this.previewEffectNode) {
+          this.previewEffectNode.curve = makeDistortionCurve(val);
+        }
+      };
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(slider);
+      container.appendChild(wrapper);
+    }
+
+    // --- TASTI ACTION ---
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.gap = "10px";
+
+    const freezeBtn = document.createElement("button");
+    freezeBtn.innerText = "APPLY (Freeze)";
+    freezeBtn.style.background = "green";
+    freezeBtn.style.color = "white";
+    freezeBtn.style.border = "none";
+    freezeBtn.style.padding = "5px 10px";
+    freezeBtn.style.cursor = "pointer";
+
+    freezeBtn.onclick = () => this.freezeCurrentEffect();
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.innerText = "Cancel";
+    cancelBtn.style.background = "#555";
+    cancelBtn.style.color = "white";
+    cancelBtn.style.border = "none";
+    cancelBtn.style.padding = "5px 10px";
+    cancelBtn.style.cursor = "pointer";
+
+    cancelBtn.onclick = () => this.closeEffectPanel();
+
+    btnContainer.appendChild(freezeBtn);
+    btnContainer.appendChild(cancelBtn);
+    container.appendChild(btnContainer);
+  }
+
+  // 4. Applica Definitivo (Renderizza Offline e Sostituisce)
+  async freezeCurrentEffect() {
+    if (!this.previewEffectNode || !this.activeRegion) return;
+
+    console.log("Freezing effect...");
+
+    try {
+      // Chiama AudioUtils per fare il rendering pesante
+      const newBuffer = await processRange(
+        this.originalBuffer,
+        this.audioContext,
+        this.currentEffectType,
+        this.activeRegion.start,
+        this.activeRegion.end,
+        this.effectParams
+      );
+
+      // Chiudi UI e pulisci nodi live
+      this.closeEffectPanel();
+
+      // Ricarica il player col nuovo buffer "stampato"
+      if (newBuffer) await this.reloadWithBuffer(newBuffer);
+
+    } catch (e) {
+      console.error("Errore Freeze:", e);
+    }
+  }
+
+  // 5. Chiudi Pannello e Pulisci
+  closeEffectPanel() {
+    const container = document.getElementById("effect-controls-container");
+    if (container) container.style.display = "none";
+
+    this.previewEffectNode = null;
+    this.activeRegion = null;
+    this.currentEffectType = null;
+
+    // Ripristina routing pulito (toglie il nodo preview dalla catena)
+    this.eqInitialized = false;
+    this.initEqualizer();
+  }
+
+  // --- HELPER DI RICARICAMENTO ---
+  async reloadWithBuffer(buffer) {
+    // Usa bufferToWave da AudioUtils
+    const blob = bufferToWave(buffer, buffer.length);
+    const url = URL.createObjectURL(blob);
+
+    this.originalBuffer = buffer;
+    this.currentAudioURL = url;
+
+    // Opzionale: pulire regioni o mantenerle
+    // this.regions.clearRegions(); 
+    // this.createTrimUI();
+
+    console.log("Reloading Wavesurfer with processed buffer...");
+    await this.wavesurfer.load(url);
+
+    // Importante: ricollegare l'EQ dopo il load
+    this.eqInitialized = false;
+    this.initEqualizer();
   }
 }
