@@ -8,9 +8,11 @@ export default class AudioPlayer {
   constructor() {
     this.audioContext = new (window.AudioContext ||
       window.webkitAudioContext)({
-        sampleRate: 44100,
-        latencyHint: 'interactive'
+        latencyHint: 'interactive',
+        sampleRate: 44100
       });
+
+    console.log("AudioContext forzato a:", this.audioContext.sampleRate); // Dovrebbe stampare 44100
 
     // Wavesurfer variables
     this.wavesurfer = null;
@@ -70,6 +72,7 @@ export default class AudioPlayer {
       height: 250,
       plugins: [this.regions],
       audioContext: this.audioContext,
+      sampleRate: this.audioContext.sampleRate
     });
 
     this.wavesurfer.on("decode", () => {
@@ -103,19 +106,16 @@ export default class AudioPlayer {
     });
 
     this.regions.on("region-created", (region) => {
-      // Ignora le regioni "tenda" (left-curtain e right-curtain)
       if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionCreated(region);
     });
 
     this.wavesurfer.on("region-updated", (region) => {
-      // Se muovi le tende, aggiorna solo la logica interna se necessario
       if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionUpdated(region);
     });
 
     this.wavesurfer.on("region-click", (region, e) => {
-      // Le tende non devono essere cliccabili per la selezione loop
       if (region.id === "left-curtain" || region.id === "right-curtain") return;
       this.handleRegionClick(region, e);
     });
@@ -527,38 +527,56 @@ export default class AudioPlayer {
   }
 
   initEqualizer() {
-    if (this.eqInitialized) return;
-
     const audio = this.wavesurfer.getMediaElement();
+    if (!audio) return;
 
-    // Crea il MediaElementSource UNA SOLA VOLTA
-    this.mediaNode = this.audioContext.createMediaElementSource(audio);
+    // Assicuriamo che l'audio possa essere processato (CORS)
+    audio.crossOrigin = "anonymous";
 
-    // Crea i filtri
-    this.filters = eqBands.map((band) => {
-      const filter = this.audioContext.createBiquadFilter();
-      filter.type =
-        band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
-      filter.gain.value = 0; // Inizia flat
-      filter.Q.value = 1;
-      filter.frequency.value = band;
-      return filter;
-    });
+    // --- FIX: EVITARE DOPPIE CONNESSIONI ---
+    // Se abbiamo già creato i nodi per questo player, NON ricrearli.
+    // Wavesurfer v7 riusa lo stesso elemento <audio>, quindi i nodi restano validi.
+    if (this.eqInitialized && this.mediaNode) {
+      console.log("EQ già inizializzato, salto la creazione dei nodi.");
+      return;
+    }
 
-    // Collega i filtri in serie
+    // Se arriviamo qui, è la prima volta assoluta. Creiamo la catena.
+    if (!this.mediaNode) {
+      this.mediaNode = this.audioContext.createMediaElementSource(audio);
+    }
+
+    // Crea i filtri solo se non esistono
+    if (this.filters.length === 0) {
+      this.filters = eqBands.map((band) => {
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
+        filter.gain.value = 0;
+        filter.Q.value = 1;
+        filter.frequency.value = band;
+        return filter;
+      });
+
+      // Collega i slider (assicurati che this.connectSliders esista e funzioni)
+      this.connectSliders();
+    }
+
+    // --- COLLEGAMENTI ---
+    // Disconnetti tutto per sicurezza prima di ricollegare
+    try { this.mediaNode.disconnect(); } catch (e) { }
+    this.filters.forEach(f => { try { f.disconnect(); } catch (e) { } });
+
+    // Ricostruisci la catena: Source -> Filtri -> Destination
     let currentNode = this.mediaNode;
     this.filters.forEach((filter) => {
       currentNode.connect(filter);
       currentNode = filter;
     });
 
-    // Collega l'ultimo filtro alla destinazione
     currentNode.connect(this.audioContext.destination);
 
-    // Collega gli slider ai filtri
-    this.connectSliders();
-
     this.eqInitialized = true;
+    console.log("Equalizzatore collegato correttamente.");
   }
 
   connectSliders() {
@@ -742,77 +760,70 @@ export default class AudioPlayer {
     });
   }
 
-  trimAudio() {
+  async trimAudio() {
     if (!this.originalBuffer || !this.trimUI) return;
 
-    // 1. CALCOLO COORDINATE (Start/End)
-    // Prendo i riferimenti visivi dalle maniglie HTML
     const containerRect = this.trimUI.container.getBoundingClientRect();
-    const leftHandleRect = this.trimUI.leftHandle.getBoundingClientRect();
-    const rightHandleRect = this.trimUI.rightHandle.getBoundingClientRect();
+    const startX = this.trimUI.leftHandle.getBoundingClientRect().left - containerRect.left;
+    const endX = this.trimUI.rightHandle.getBoundingClientRect().left - containerRect.left;
 
-    const startX = leftHandleRect.left - containerRect.left;
-    const endX = rightHandleRect.left - containerRect.left;
+    let startRatio = Math.max(0, startX / containerRect.width);
+    let endRatio = Math.min(1, endX / containerRect.width);
 
-    let startRatio = startX / containerRect.width;
-    let endRatio = endX / containerRect.width;
+    const tolerance = 0.01;
 
-    // Clamp per sicurezza
+    if (startRatio < tolerance) startRatio = 0;
+
+    if (endRatio > (1 - tolerance)) endRatio = 1;
+
     startRatio = Math.max(0, startRatio);
     endRatio = Math.min(1, endRatio);
 
     if (startRatio >= endRatio) return;
 
-    // 2. PREPARAZIONE DATI (La logica del tuo snippet)
-    const originalBuffer = this.originalBuffer;
-    const sampleRate = originalBuffer.sampleRate;
-    const fullDuration = originalBuffer.duration;
+    if (startRatio === 0 && endRatio === 1) {
+      console.log("Nessun taglio selezionato: operazione annullata.");
+      return;
+    }
 
-    const startTime = startRatio * fullDuration;
-    const endTime = endRatio * fullDuration;
+    const sampleRate = this.originalBuffer.sampleRate;
+    const startFrame = Math.floor(startRatio * this.originalBuffer.length);
+    const endFrame = Math.floor(endRatio * this.originalBuffer.length);
+    const frameCount = endFrame - startFrame;
 
-    // Calcolo indici esatti (Sample-accurate)
-    const startBufferIndex = Math.floor(startTime * sampleRate);
-    const endBufferIndex = Math.floor(endTime * sampleRate);
-    const trimmedBufferLength = endBufferIndex - startBufferIndex;
+    if (frameCount <= 0) return;
 
-    if (trimmedBufferLength <= 0) return;
-
-    // 3. CREAZIONE BUFFER VUOTO
-    const copiedBuffer = this.audioContext.createBuffer(
-      originalBuffer.numberOfChannels,
-      trimmedBufferLength,
+    const trimmedBuffer = this.audioContext.createBuffer(
+      this.originalBuffer.numberOfChannels,
+      frameCount,
       sampleRate
     );
 
-    // 4. CORE LOGIC: I CICLI FOR "PURE DATA COPY" (Richiesti da te)
-    // Copiamo byte per byte senza conversioni strane
-    for (let i = 0; i < originalBuffer.numberOfChannels; i++) {
-      let originalChanData = originalBuffer.getChannelData(i);
-      let copiedChanData = copiedBuffer.getChannelData(i);
-
-      for (let j = startBufferIndex, k = 0; j < endBufferIndex; j++, k++) {
-        copiedChanData[k] = originalChanData[j];
-      }
+    for (let ch = 0; ch < this.originalBuffer.numberOfChannels; ch++) {
+      const channelData = this.originalBuffer.getChannelData(ch);
+      trimmedBuffer.copyToChannel(channelData.slice(startFrame, endFrame), ch);
     }
 
-    // 5. CARICAMENTO (Adattamento obbligato per WaveSurfer v7)
-    // WaveSurfer v7 NON ha più `loadDecodedBuffer`. Accetta solo Blob o URL.
-    // Usiamo bufferToWave SOLO come "ponte" trasparente per far contento WaveSurfer.
-    const blob = bufferToWave(copiedBuffer, trimmedBufferLength);
-    const newAudioURL = URL.createObjectURL(blob);
+    try {
+      const blob = bufferToWave(trimmedBuffer, frameCount);
+      const newAudioURL = URL.createObjectURL(blob);
 
-    // Aggiorniamo i riferimenti
-    this.originalBuffer = copiedBuffer;
-    this.currentAudioURL = newAudioURL;
+      this.originalBuffer = trimmedBuffer;
+      this.currentAudioURL = newAudioURL;
 
-    // Reset UI
-    this.regions.clearRegions();
-    this.createTrimUI();
+      console.log("Original Buffer Rate:", this.originalBuffer.sampleRate);
 
-    // Carichiamo il risultato
-    console.log("Loading trimmed buffer (Raw Copy Method)...");
-    this.wavesurfer.load(newAudioURL);
+      this.regions.clearRegions();
+      this.createTrimUI();
+
+      console.log("Ricaricamento Wavesurfer...");
+      await this.wavesurfer.load(newAudioURL);
+
+      this.initEqualizer();
+
+    } catch (e) {
+      console.error("Errore Trim:", e);
+    }
   }
 
   applyEffectToRegion(region, type) {

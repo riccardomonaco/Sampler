@@ -25,49 +25,52 @@ export const soundBanks = {
   ],
 };
 
+
 export function bufferToWave(abuffer, len) {
   const numOfChan = abuffer.numberOfChannels;
-  const length = len * numOfChan * 2 + 44;
-  const buffer = new ArrayBuffer(length);
+  const length = len || abuffer.length;
+  const lengthInBytes = length * numOfChan * 2;
+  const buffer = new ArrayBuffer(44 + lengthInBytes);
   const view = new DataView(buffer);
-  const channels = [];
-  let i, sample, offset = 0, pos = 0;
 
-  // Helpers per scrivere i byte
-  function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
-  function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+  // Helper scrittura stringhe
+  function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  }
 
-  // --- HEADER WAV ---
-  setUint32(0x46464952); // "RIFF"
-  setUint32(length - 8); // file length - 8
-  setUint32(0x45564157); // "WAVE"
+  // --- 1. SCRITTURA HEADER WAV STANDARD ---
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + lengthInBytes, true); // File size
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);                // Chunk size
+  view.setUint16(20, 1, true);                 // Format (1 = PCM)
+  view.setUint16(22, numOfChan, true);         // Channels
+  view.setUint32(24, abuffer.sampleRate, true);// Sample Rate
+  view.setUint32(28, abuffer.sampleRate * 2 * numOfChan, true); // Byte Rate
+  view.setUint16(32, numOfChan * 2, true);     // Block Align
+  view.setUint16(34, 16, true);                // Bits per Sample
+  writeString(view, 36, 'data');
+  view.setUint32(40, lengthInBytes, true);     // Data size
 
-  setUint32(0x20746d66); // "fmt " chunk
-  setUint32(16);         // length = 16
-  setUint16(1);          // PCM (Standard non compresso)
-  setUint16(numOfChan);
-  setUint32(abuffer.sampleRate);
-  setUint32(abuffer.sampleRate * 2 * numOfChan); // byte rate
-  setUint16(numOfChan * 2); // block-align
-  setUint16(16);         // 16-bit
+  // --- 2. SCRITTURA DATI (PCM 16-bit) ---
+  // Scriviamo i campioni usando setInt16 con Little Endian forzato (true)
+  let offset = 44;
 
-  setUint32(0x61746164); // "data" - chunk
-  setUint32(length - pos - 4); // chunk length
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < numOfChan; ch++) {
+      let sample = abuffer.getChannelData(ch)[i];
 
-  // --- SCRITTURA DATI ---
-  for (i = 0; i < abuffer.numberOfChannels; i++)
-    channels.push(abuffer.getChannelData(i));
+      // Clipping rigoroso tra -1 e 1
+      sample = Math.max(-1, Math.min(1, sample));
 
-  offset = 44;
-  for (let j = 0; j < len; j++) {
-    for (i = 0; i < numOfChan; i++) {
-      // Clamping: Assicura che il volume non spacchi le casse (>1 o <-1)
-      sample = Math.max(-1, Math.min(1, channels[i][j]));
-      
-      // Conversione a 16-bit: (0x7FFF = 32767)
-      // Usiamo un operatore ternario per la massima precisione sui negativi
-      sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
-      
+      // Conversione a 16-bit:
+      // Se < 0 usiamo 0x8000 (32768), se > 0 usiamo 0x7FFF (32767)
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+
+      // Scrittura sicura
       view.setInt16(offset, sample, true);
       offset += 2;
     }
