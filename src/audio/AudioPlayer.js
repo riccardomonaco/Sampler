@@ -37,6 +37,10 @@ export default class AudioPlayer {
     this.currentEffectType = null; // Tipo di effetto corrente
     this.effectParams = {};
 
+    this.zoomLevel = 0;   // Livello zoom attuale
+    this.isMagnetOn = false; // Stato calamita
+    this.quantizeVal = 4;
+
     // Beat detection config structure
     this.beatDetect = new BeatDetect({
       sampleRate: this.audioContext.sampleRate,
@@ -82,6 +86,26 @@ export default class AudioPlayer {
       sampleRate: this.audioContext.sampleRate
     });
 
+    const container = document.querySelector("#waveform");
+
+    container.addEventListener("wheel", (e) => {
+      if (this.wavesurfer) {
+        e.preventDefault();
+
+        // Sensibilità dello zoom
+        const delta = e.deltaY > 0 ? -50 : 50;
+
+        // Wavesurfer v7 usa minPxPerSec per lo zoom. Default circa 20-50.
+        let currentZoom = this.wavesurfer.options.minPxPerSec || 50; // Valore base o corrente
+        let newZoom = currentZoom + delta;
+
+        // Limiti (Minimo 20 per vedere tutto, Massimo 1000 per precisione chirurgica)
+        newZoom = Math.max(20, Math.min(newZoom, 1000));
+
+        this.wavesurfer.zoom(newZoom);
+      }
+    }, { passive: false });
+
     this.wavesurfer.on("decode", () => {
       const buffer = this.wavesurfer.getDecodedData();
       if (buffer) {
@@ -94,6 +118,7 @@ export default class AudioPlayer {
     this.wavesurfer.on("ready", async () => {
       this.initEqualizer();
       this.createTrimUI();
+      this.initMagnetUI();
       await this.detectBPM();
       const plusWrapper = document.getElementById("plus-wrapper");
       if (plusWrapper) {
@@ -105,7 +130,9 @@ export default class AudioPlayer {
       this.initTrimCurtains();
     });
 
-    this.wavesurfer.on("click", (relativeX) => { });
+    this.wavesurfer.on("click", (relativeX) => {
+      this.clearLoop();
+    });
 
     this.wavesurfer.on("seek", (progress) => {
       this.handleSeek(progress);
@@ -120,9 +147,16 @@ export default class AudioPlayer {
       this.handleRegionCreated(region);
     });
 
-    this.wavesurfer.on("region-updated", (region) => {
+    this.regions.on("region-updated", (region) => {
+      // Ignora le tende laterali
       if (region.id === "left-curtain" || region.id === "right-curtain") return;
+
       this.handleRegionUpdated(region);
+
+      // Applica lo snap solo se Calamita è ON e abbiamo un BPM valido
+      if (this.isMagnetOn && this.bpm > 0) {
+        this.snapRegionToGrid(region);
+      }
     });
 
     this.wavesurfer.on("region-click", (region, e) => {
@@ -138,6 +172,13 @@ export default class AudioPlayer {
     this.regions.on("region-out", (region) => {
       if (this.isLooping && this.currentRegion === region) {
         region.play();
+      }
+    });
+
+    this.wavesurfer.on("finish", () => {
+      if (this.isLooping && !this.currentRegion) {
+        console.log("Loop traccia intera...");
+        this.wavesurfer.play();
       }
     });
   }
@@ -272,10 +313,6 @@ export default class AudioPlayer {
     });
 
     document.getElementById("loop-button").addEventListener("click", () => {
-      if (!this.isLooping) {
-      } else {
-        this.regions.clearRegions();
-      }
       this.isLooping = !this.isLooping;
       document
         .getElementById("loop-button")
@@ -397,6 +434,8 @@ export default class AudioPlayer {
         }
       }
     });
+
+    this.setupBpmInput();
   }
 
   /**
@@ -416,7 +455,7 @@ export default class AudioPlayer {
 
 
   handleInteraction() {
-    this.wavesurfer.play();
+    // this.wavesurfer.play();
   }
 
   addRegion() {
@@ -478,8 +517,11 @@ export default class AudioPlayer {
       });
 
       region.on("dblclick", (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        document.getElementById("loop-button").click();
+        if (!this.isLooping) {
+          document.getElementById("loop-button").click();
+        }
         this.setCurrentRegion(region);
       });
 
@@ -555,34 +597,39 @@ export default class AudioPlayer {
   }
 
   setCurrentRegion(region) {
-    // Rimuovi highlight dalla regione precedente
     if (this.currentRegion) {
-      this.currentRegion.update({ color: "rgba(255, 0, 0, 0.1)" });
+      this.currentRegion.setOptions({ color: "rgba(255, 255, 255, 0.1)" });
+      if (this.currentRegion.element) {
+        this.currentRegion.element.style.border = "none";
+        this.currentRegion.element.style.zIndex = "10";
+      }
     }
 
-    // Imposta nuova regione corrente
     this.currentRegion = region;
-    region.update({ color: "rgba(0, 255, 0, 0.2)" });
 
-    console.log("Regione corrente impostata:", region);
+    region.setOptions({ color: "rgba(255, 255, 255, 0.2)" });
 
-    // Se è in riproduzione, riavvia con la nuova regione
-    if (this.isPlaying) {
-      this.pause();
-      this.play();
+    if (region.element) {
+      region.element.style.boxSizing = "border-box";
+      region.element.style.border = "1px solid rgba(255, 255, 255, 0.5)"; // Più visibile
+      region.element.style.zIndex = "100"; // Porta in primo piano
+    }
+
+    if (this.wavesurfer.isPlaying()) {
+      region.play();
     }
   }
 
   clearLoop() {
-    this.currentRegion = null;
-    this.regions.forEach((region) => {
-      region.update({ color: "rgba(255, 0, 0, 0.1)" });
-    });
+    if (!this.currentRegion) return;
 
-    if (this.isPlaying) {
-      this.pause();
-      this.play();
+    this.currentRegion.setOptions({ color: "rgba(255, 255, 255, 0.1)" });
+    if (this.currentRegion.element) {
+      this.currentRegion.element.style.border = "none";
+      this.currentRegion.element.style.zIndex = "10";
     }
+
+    this.currentRegion = null;
   }
 
   initEqualizer() {
@@ -1087,5 +1134,156 @@ export default class AudioPlayer {
     // Importante: ricollegare l'EQ dopo il load
     this.eqInitialized = false;
     this.initEqualizer();
+  }
+
+  initMagnetUI() {
+    const bpmWrapper = document.querySelector(".bpm-led-wrapper");
+    if (!bpmWrapper) return;
+
+    // 1. Contenitore Magnete
+    const magnetContainer = document.createElement("div");
+    magnetContainer.style.display = "flex";
+    magnetContainer.style.alignItems = "center";
+    magnetContainer.style.gap = "5px";
+    magnetContainer.style.marginTop = "10px";
+    magnetContainer.style.justifyContent = "center";
+
+    // 2. Icona Calamita (Button)
+    const magnetBtn = document.createElement("div");
+    magnetBtn.innerHTML = '<i class="fa-solid fa-magnet"></i>'; // Assumi FontAwesome, o usa emoji 🧲
+    magnetBtn.title = "Toggle Snap to Grid";
+    magnetBtn.style.cursor = "pointer";
+    magnetBtn.style.padding = "5px 10px";
+    magnetBtn.style.borderRadius = "4px";
+    magnetBtn.style.color = "#555";
+    magnetBtn.style.border = "1px solid #555";
+    magnetBtn.style.fontSize = "18px";
+
+    // Toggle Logic
+    magnetBtn.onclick = () => {
+      this.isMagnetOn = !this.isMagnetOn;
+      if (this.isMagnetOn) {
+        magnetBtn.style.color = "var(--color-green)"; // O 'lime'
+        magnetBtn.style.borderColor = "var(--color-green)";
+        console.log("Magnet ON");
+      } else {
+        magnetBtn.style.color = "#555";
+        magnetBtn.style.borderColor = "#555";
+        console.log("Magnet OFF");
+      }
+    };
+
+    // 3. Select Quantizzazione (1/2, 1/4, 1/8)
+    const quantizeSelect = document.createElement("select");
+    quantizeSelect.style.backgroundColor = "#222";
+    quantizeSelect.style.color = "white";
+    quantizeSelect.style.border = "1px solid #444";
+    quantizeSelect.style.borderRadius = "4px";
+    quantizeSelect.style.padding = "2px";
+    quantizeSelect.style.fontFamily = "Pixelify Sans";
+
+    const options = [
+      { val: 2, label: "1/2" },
+      { val: 4, label: "1/4" },
+      { val: 8, label: "1/8" },
+      { val: 16, label: "1/16" }
+    ];
+
+    options.forEach(opt => {
+      const el = document.createElement("option");
+      el.value = opt.val;
+      el.innerText = opt.label;
+      if (opt.val === 4) el.selected = true; // Default 1/4
+      quantizeSelect.appendChild(el);
+    });
+
+    quantizeSelect.onchange = (e) => {
+      this.quantizeVal = parseInt(e.target.value);
+    };
+
+    // Assembla
+    magnetContainer.appendChild(magnetBtn);
+    magnetContainer.appendChild(quantizeSelect);
+    bpmWrapper.appendChild(magnetContainer);
+  }
+
+
+  snapRegionToGrid(region) {
+    // 1. Safety Check BPM
+    const activeBpm = this.bpm > 0 ? this.bpm : 120;
+
+    // 2. Calcolo Griglia (es. 1/4 di beat a 120bpm = 0.5s)
+    const beatDuration = 60 / activeBpm;
+    const gridSize = beatDuration * (4 / this.quantizeVal);
+
+    // 3. Calcolo posizioni ideali (Arrotondamento matematico)
+    const snappedStart = Math.round(region.start / gridSize) * gridSize;
+    let snappedEnd = Math.round(region.end / gridSize) * gridSize;
+
+    // 4. Prevenzione durata zero
+    if (snappedEnd <= snappedStart) {
+      snappedEnd = snappedStart + gridSize;
+    }
+
+    // 5. Applica SOLO se c'è una differenza (per evitare loop infiniti)
+    // Usiamo una tolleranza molto bassa. Se la differenza è > 0.001s, forza lo spostamento.
+    // Questo crea l'effetto "scatto" visivo.
+    if (Math.abs(region.start - snappedStart) > 0.001 ||
+      Math.abs(region.end - snappedEnd) > 0.001) {
+
+      region.setOptions({
+        start: snappedStart,
+        end: snappedEnd
+      });
+    }
+  }
+
+  // Gestione Input Manuale BPM
+  setupBpmInput() {
+    const bpmLed = document.getElementById("bpm-led");
+    if (!bpmLed) return;
+
+    bpmLed.addEventListener("dblclick", () => {
+      // 1. Evita doppi input
+      if (bpmLed.querySelector("input")) return;
+
+      const currentText = bpmLed.innerText.replace(" BPM", "");
+      const currentVal = parseInt(currentText) || this.bpm || 120;
+
+      // 2. Sostituisci testo con Input
+      bpmLed.innerHTML = "";
+      const input = document.createElement("input");
+      input.classList.add("BPM_input")
+      input.type = "number";
+      input.value = currentVal;
+      input.style.width = "60px";
+      input.style.background = "transparent";
+      input.style.color = "inherit";
+      input.style.border = "none";
+      input.style.fontFamily = "inherit";
+      input.style.fontSize = "inherit";
+      input.style.textAlign = "center";
+      input.style.outline = "none";
+
+      bpmLed.appendChild(input);
+      input.focus();
+
+      // 3. Funzione di salvataggio
+      const saveBpm = () => {
+        let newVal = parseInt(input.value);
+        if (newVal && newVal > 0) {
+          this.bpm = newVal;
+        }
+        // Ripristina UI
+        bpmLed.innerText = this.bpm + " BPM";
+        bpmLed.classList.remove("bpm-led-locked"); // Sblocca eventuale lock visivo
+      };
+
+      // Salva su Invio o Click fuori (blur)
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") saveBpm();
+      });
+      input.addEventListener("blur", () => saveBpm());
+    });
   }
 }

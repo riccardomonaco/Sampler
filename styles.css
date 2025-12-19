@@ -129,6 +129,10 @@ body {
   width: 0px;
 }
 
+.BPM_input::-webkit-scrollbar {
+  width: 0px;
+}
+
 /* Binario (Track) - Lo sfondo su cui scorre */
 .banks-content::-webkit-scrollbar-track {
   background: var(--dgrey);
