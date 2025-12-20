@@ -1,145 +1,239 @@
 import { eqBands, soundBanks } from "../audio/AudioUtils";
 
-const bankSelect = document.getElementById("banks");
-const banksContent = document.querySelector(".banks-content");
+// ===========================================================================
+// 1. HELPER COMPONENTS
+// ===========================================================================
 
-// ===========================================================================
-// MAIN LAYOUT CREATORS
-// ===========================================================================
+function createCommandsButtons() {
+  const container = document.createElement("div");
+  container.className = "command-buttons";
+  
+  [{id:"play-button", t:"▶︎"}, {id:"pause-button", t:"||"}, {id:"stop-button", t:"◼"}].forEach(btn => {
+    const div = document.createElement("div");
+    div.className = "old-button";
+    div.id = btn.id;
+    div.textContent = btn.t;
+    container.appendChild(div);
+  });
+  return container;
+}
 
 /**
- * Constructs the main Sampler interface (Waveform + EQ + Transport).
- * @return {HTMLElement} The sampler wrapper element.
+ * Crea una manopola (Knob) statica.
  */
+function createKnob(id, label) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "knob-wrapper";
+
+  const lbl = document.createElement("div");
+  lbl.className = "knob-label";
+  lbl.innerText = label;
+  lbl.id = `label-${id}`;
+
+  const body = document.createElement("div");
+  body.className = "knob-body";
+  body.id = `knob-${id}`;
+  body.dataset.value = (id === 'vol') ? 0.8 : 0.0;
+
+  const indicator = document.createElement("div");
+  indicator.className = "knob-indicator";
+  const startDeg = (id === 'vol') ? 81 : -135;
+  indicator.style.transform = `translate(-50%, -100%) rotate(${startDeg}deg)`;
+
+  const valDisplay = document.createElement("div");
+  valDisplay.className = "knob-value";
+  valDisplay.id = `val-${id}`;
+  valDisplay.innerText = (id === 'vol') ? "80%" : "--";
+
+  body.appendChild(indicator);
+  wrapper.append(lbl, body, valDisplay);
+  return wrapper;
+}
+
+/**
+ * Genera la griglia di Floppy usando le IMMAGINI come nel tuo HTML.
+ */
+function createFloppyDeck() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "fx-buttons-wrapper"; 
+
+  const container = document.createElement("div");
+  container.className = "fx-buttons"; // Classe originale dell'HTML
+
+  const effects = [
+    { id: "reverse", img: "reverse.png", alt: "Reverse FX" },
+    { id: "delay", img: "delay.png", alt: "Delay FX" },
+    { id: "distortion", img: "distort.png", alt: "Distort FX" }, // Nota: controlla se il file è distort.png o distortion.png
+    { id: "bitcrush", img: "bitcrush.png", alt: "Bitcrush FX" }
+  ];
+
+  effects.forEach(fx => {
+    const img = document.createElement("img");
+    img.src = `./assets/img/${fx.img}`; // Percorso relativo alle immagini
+    img.className = "fx-img";
+    img.draggable = true;
+    img.setAttribute("data-effect", fx.id);
+    img.alt = fx.alt;
+
+    // Evento Drag Nativo
+    img.addEventListener("dragstart", (e) => {
+       e.dataTransfer.setData("effectType", fx.id);
+       e.dataTransfer.effectAllowed = "copy";
+    });
+
+    container.appendChild(img);
+  });
+
+  wrapper.appendChild(container);
+  return wrapper;
+}
+
+function createBpmSection() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "bpm-led-wrapper";
+    
+    const led = document.createElement("div");
+    led.id = "bpm-led";
+    led.className = "bpm-led";
+    led.innerText = "tap BPM"; // Lowercase 'tap' come nel tuo HTML
+    wrapper.appendChild(led);
+    return wrapper;
+}
+
+// ===========================================================================
+// 2. MAIN SECTIONS BUILDERS
+// ===========================================================================
+
 function createSampler() {
-  const samplerMain = document.createElement("div");
-  samplerMain.classList.add("sampler-wrapper");
+  const wrapper = document.createElement("div");
+  wrapper.className = "sampler-wrapper";
 
   const sampler = document.createElement("div");
-  sampler.classList.add("sampler");
-  sampler.classList.add("border-shadow");
-  sampler.appendChild(createWaveWrapper());
-  sampler.appendChild(createEqualizerGrid().appendChild(createEqualizer()));
-
-  const commands = document.createElement("div");
-  commands.classList.add("commands");
-  commands.classList.add("border-shadow");
-  commands.appendChild(createCommandsButtons());
-
-  samplerMain.appendChild(sampler);
-  samplerMain.appendChild(commands);
-  return samplerMain;
-}
-
-/**
- * Constructs the Effects sidebar (Loop controls + Effect slots).
- * @return {HTMLElement} The effects wrapper element.
- */
-function createEffects() {
-  // MAIN SIDE WRAPPER
-  const effects = document.createElement("div");
-  effects.classList.add("effects");
-  effects.classList.add("border-shadow");
-
-  // LOOP CONTROL WRAPPER
-  const loopButtons = document.createElement("div");
-  loopButtons.classList.add("loop-buttons");
-
-  const d2Buttons = document.createElement("div");
-  d2Buttons.classList.add("old-button");
-  d2Buttons.textContent = "◀";
-  d2Buttons.setAttribute("id", "d2-button");
-
-  const loopButton = document.createElement("div");
-  loopButton.classList.add("old-button");
-  loopButton.textContent = "↻";
-  loopButton.setAttribute("id", "loop-button");
-
-  const x2Button = document.createElement("div");
-  x2Button.classList.add("old-button");
-  x2Button.textContent = "▶";
-  x2Button.setAttribute("id", "x2-button");
-
-  loopButtons.appendChild(d2Buttons);
-  loopButtons.appendChild(loopButton);
-  loopButtons.appendChild(x2Button);
-
-  const loopLabel = document.createElement("div");
-  loopLabel.classList.add("loop-label");
-  loopLabel.textContent = "LOOP CONTROLS";
-
-  effects.appendChild(loopButtons);
-  effects.appendChild(loopLabel);
-
-  return effects;
-}
-
-/**
- * Creates the standard transport buttons (Play, Pause, Stop).
- * @return {HTMLElement} The container with buttons.
- */
-function createCommandsButtons() {
-  const commandButtons = document.createElement("div");
-  commandButtons.classList.add("command-buttons");
-
-  const playButton = document.createElement("div");
-  playButton.classList.add("old-button");
-  playButton.textContent = "▶︎";
-  playButton.setAttribute("id", "play-button");
-
-  const pauseButton = document.createElement("div");
-  pauseButton.classList.add("old-button");
-  pauseButton.textContent = "||";
-  pauseButton.setAttribute("id", "pause-button");
-
-  const stopButton = document.createElement("div");
-  stopButton.classList.add("old-button");
-  stopButton.textContent = "◼";
-  stopButton.setAttribute("id", "stop-button");
-
-  commandButtons.appendChild(playButton);
-  commandButtons.appendChild(pauseButton);
-  commandButtons.appendChild(stopButton);
-
-  return commandButtons;
-}
-
-/**
- * Creates the empty container for WaveSurfer.
- * @return {HTMLElement} The waveform container.
- */
-function createWaveWrapper() {
-  const waveContainer = document.createElement("div");
-  waveContainer.setAttribute("id", "waveform");
-  return waveContainer;
-}
-
-/**
- * Assembles the complete page layout structure and appends to root.
- */
-export function createPageDefault() {
-  const wrapper = document.createElement("div");
-  wrapper.classList.add("wrapper");
-
-  wrapper.appendChild(createSampler());
-  wrapper.appendChild(createEffects());
-
-  // Assuming 'root' is defined globally or imported elsewhere in your app structure
-  // If strict, pass 'root' as an argument.
-  root.appendChild(wrapper); 
-}
-
-// ===========================================================================
-// EQUALIZER GENERATOR
-// ===========================================================================
-
-/**
- * Generates EQ sliders based on the imported `eqBands` configuration.
- * @return {HTMLElement} The populated sliders wrapper.
- */
-export default function createEqualizer() {
-  const slidersContainer = document.getElementById("sliders-wrapper");
+  sampler.className = "sampler border-shadow";
+  sampler.id = "sample-drop";
   
+  // Waveform Container
+  const waveform = document.createElement("div");
+  waveform.id = "waveform";
+  const plus = document.createElement("div");
+  plus.className = "plus-wrapper";
+  plus.id = "plus-wrapper";
+  plus.innerText = "DROP A SAMPLE...";
+  waveform.appendChild(plus);
+  
+  // EQ Grid
+  const eqGrid = document.createElement("div");
+  eqGrid.className = "eq-grid";
+  eqGrid.appendChild(createEqualizer()); // Usa la tua funzione sotto
+
+  sampler.append(waveform, eqGrid);
+
+  // Commands
+  const commands = document.createElement("div");
+  commands.className = "commands border-shadow";
+  
+  // Ricostruzione fedele della barra comandi HTML
+  const pbLabel = document.createElement("div"); pbLabel.className="loop-label"; pbLabel.innerText="PLAYBACK";
+  const cmdBtns = createCommandsButtons();
+  
+  const loopLabel = document.createElement("div"); loopLabel.className="loop-label"; loopLabel.innerText="LOOP";
+  const loopBtns = document.createElement("div"); loopBtns.className="loop-buttons";
+  [{id:"d2-button",t:"◀"}, {id:"loop-button",t:"↻"}, {id:"x2-button",t:"▶"}].forEach(b=>{
+      const d=document.createElement("div"); d.className="old-button"; d.id=b.id; d.textContent=b.t; loopBtns.appendChild(d);
+  });
+
+  const recLabel = document.createElement("div"); recLabel.className="loop-label"; recLabel.innerText="REC";
+  const recBtns = document.createElement("div"); recBtns.className="rec-buttons";
+  const recDot = document.createElement("div"); recDot.className="old-button"; recDot.id="rec-button"; recDot.textContent="⦿";
+  recBtns.appendChild(recDot);
+  
+  const trimBtns = document.createElement("div"); trimBtns.className="rec-buttons";
+  const trimIcon = document.createElement("div"); trimIcon.className="old-button"; trimIcon.id="trim-btn"; trimIcon.textContent="✂";
+  trimBtns.appendChild(trimIcon);
+
+  commands.append(pbLabel, cmdBtns, loopLabel, loopBtns, recLabel, recBtns, trimBtns);
+  
+  wrapper.append(sampler, commands);
+  return wrapper;
+}
+
+function createEffects() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "effects border-shadow";
+  
+  // LABEL
+  const label = document.createElement("div");
+  label.className = "fx-label";
+  label.textContent = "EFFECTS";
+
+  // 1. FLOPPY IMAGES (Middle - Flex Grow)
+  const floppyDeck = createFloppyDeck();
+
+  // 2. KNOBS RACK (Static - Hardcoded here)
+  const knobsRack = document.createElement("div");
+  knobsRack.className = "knobs-rack";
+  
+  knobsRack.appendChild(createKnob("p1", "PARAM 1"));
+  
+  const freezeBtn = document.createElement("div");
+  freezeBtn.className = "freeze-btn";
+  freezeBtn.id = "freeze-btn";
+  freezeBtn.innerText = "FREEZE";
+  knobsRack.appendChild(freezeBtn);
+  
+  knobsRack.appendChild(createKnob("p2", "PARAM 2"));
+  knobsRack.appendChild(createKnob("vol", "MASTER"));
+
+  // 3. BPM (Bottom)
+  const bpmSection = createBpmSection();
+
+  wrapper.append(label, floppyDeck, knobsRack, bpmSection);
+  return wrapper;
+}
+
+/**
+ * Costruisce SOLO lo scheletro della colonna Banks.
+ * Il contenuto (pad) verrà riempito da createBank chiamando l'evento change.
+ */
+function createBanksWrapper() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "banks border-shadow";
+
+  const menu = document.createElement("div");
+  menu.className = "banks-menu";
+
+  const label = document.createElement("div");
+  label.className = "banks-label";
+  label.innerText = "CHOOSE A SOUNDBANK";
+
+  const select = document.createElement("select");
+  select.name = "banks";
+  select.id = "banks";
+  select.className = "banks-dropdown";
+
+  // Event listener per popolare i pad quando cambia il menu
+  select.addEventListener("change", (e) => {
+    createBank(e.target.value);
+  });
+
+  menu.append(label, select);
+
+  const content = document.createElement("div");
+  content.className = "banks-content";
+
+  wrapper.append(menu, content);
+  return wrapper;
+}
+
+// ===========================================================================
+// 3. LOGIC & EXPORT (Equalizer & Bank Population)
+// ===========================================================================
+
+export default function createEqualizer() {
+  const slidersContainer = document.createElement('div');
+  slidersContainer.id = "sliders-wrapper";
+  slidersContainer.className = "sliders-wrapper";
+
   eqBands.map((e) => {
     const eqBand = document.createElement("div");
     eqBand.classList.add("eq-band");
@@ -151,9 +245,8 @@ export default function createEqualizer() {
     slider.max = 12;
     slider.value = 0;
     slider.step = 0.1;
-    
-    // Reset on double click
-    slider.addEventListener("dblclick", (event) => {
+
+    slider.addEventListener("dblclick", () => {
       slider.value = 0;
       slider.dispatchEvent(new Event("input"));
     });
@@ -169,39 +262,16 @@ export default function createEqualizer() {
   return slidersContainer;
 }
 
-/**
- * Creates the grid container for the EQ sliders.
- * @return {HTMLElement} The grid element.
- */
-function createEqualizerGrid() {
-  const slidersGrid = document.createElement("div");
-  slidersGrid.classList.add("eq-grid");
-  return slidersGrid;
-}
-
-/**
- * Helper to format frequency numbers into Hz/kHz strings.
- * @param {number} freq - Frequency in Hz.
- * @returns {string} Formatted label.
- */
 function formatFreqLabel(freq) {
-  if (freq >= 1000) {
-    return `${freq / 1000}kHz`;
-  }
-  return `${freq} Hz`;
+  return freq >= 1000 ? `${freq / 1000}kHz` : `${freq} Hz`;
 }
 
-// ===========================================================================
-// BANK & SAMPLE MANAGEMENT
-// ===========================================================================
-
-/**
- * Generates sample pads for a selected bank name.
- * @param {string} bankName - The key name of the bank in soundBanks.
- */
+// Funzione originale mantenuta per popolare i pad
 function createBank(bankName) {
-  banksContent.innerHTML = "";
+  const banksContent = document.querySelector(".banks-content");
+  if (!banksContent) return;
 
+  banksContent.innerHTML = "";
   if (!bankName) return;
 
   const samples = soundBanks[bankName];
@@ -224,18 +294,16 @@ function createBank(bankName) {
   });
 }
 
-/**
- * Initializes the dropdown menu with available sound banks.
- */
 export function initBankMenu() {
-  bankSelect.innerHTML = "";
+  const bankSelect = document.getElementById("banks");
+  if (!bankSelect) return;
 
+  bankSelect.innerHTML = "";
   const defaultOption = document.createElement("option");
   defaultOption.value = ""; 
   defaultOption.textContent = "-- SELECT SOUND BANK --";
   defaultOption.disabled = true; 
   defaultOption.selected = true;
-  defaultOption.hidden = true; 
   bankSelect.appendChild(defaultOption);
 
   Object.keys(soundBanks).forEach((bankName) => {
@@ -246,14 +314,21 @@ export function initBankMenu() {
   });
 }
 
-// Event Listeners
-bankSelect.addEventListener("change", (e) => {
-  createBank(e.target.value);
-});
+// ===========================================================================
+// MAIN BUILDER
+// ===========================================================================
 
-// Deprecated / Placeholder
-export function createAddSample() {
-  // Assuming 'plus' is defined elsewhere or this is a WIP
-  // plus = document.createElement("div");
-  // plus.classList.add("");
+export function createPageDefault() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "wrapper";
+
+  wrapper.appendChild(createSampler());
+  wrapper.appendChild(createEffects());     // Ora include Floppy Img + Knobs
+  wrapper.appendChild(createBanksWrapper()); // Struttura HTML corretta per le banche
+
+  const root = document.getElementById("root") || document.body;
+  root.innerHTML = ""; 
+  root.appendChild(wrapper);
+
+  initBankMenu();
 }

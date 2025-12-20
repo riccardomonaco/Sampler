@@ -1,17 +1,18 @@
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "../../node_modules/wavesurfer.js/dist/plugins/regions.esm.js";
 import BeatDetect from "./BeatDetect.js";
-import { 
-  eqBands, 
-  bufferToWave, 
-  processRange, 
-  sliceBuffer, 
-  makeDistortionCurve 
+import {
+  eqBands,
+  bufferToWave,
+  processRange,
+  sliceBuffer,
+  makeDistortionCurve
 } from "./AudioUtils.js";
 
 /**
- * Main class handling audio playback, waveform visualization,
- * regions, effects processing, and user interaction.
+ * Main AudioPlayer class.
+ * Handles WaveSurfer instance, Regions, Audio Context, Effects chain,
+ * and user interactions (Mouse, Keyboard, Drag&Drop).
  */
 export default class AudioPlayer {
   constructor() {
@@ -33,12 +34,15 @@ export default class AudioPlayer {
     this.isEmpty = true;
     this.isLooping = false;
     this.zoomLevel = 0;
-    
+
     // Audio Node State
     this.filters = [];
-    this.eqInputNode = null;       // EQ Chain Entry
-    this.previewEffectNode = null; // Live Effect Node
+    this.eqInputNode = null;       // EQ Chain Entry Point
+    this.previewEffectNode = null; // Node for live Distortion/Bitcrush
+    this.delayNode = null;         // Node for live Delay
+    this.feedbackNode = null;      // Node for live Delay Feedback
     this.eqInitialized = false;
+    this.masterGainNode = null;
 
     // Effects State
     this.currentEffectType = null;
@@ -48,7 +52,7 @@ export default class AudioPlayer {
     this.bpm = 0;
     this.isMagnetOn = false;
     this.quantizeVal = 4;
-    
+
     // History State
     this.history = [];
     this.redoStack = [];
@@ -78,8 +82,7 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Destroys existing WaveSurfer instance (if any) and creates a new one
-   * with Region plugin and visual configurations.
+   * Initializes or recreates the WaveSurfer instance and Regions plugin.
    */
   initWaveSurfer() {
     if (this.wavesurfer) {
@@ -106,8 +109,7 @@ export default class AudioPlayer {
   }
 
   /**
-   * Attaches wheel event listeners to the container for waveform zooming.
-   * Constrains zoom level between 20 and 1000 px/sec.
+   * Attaches zoom listeners (Mouse Wheel) to the waveform container.
    */
   setupZoom() {
     const container = document.querySelector("#waveform");
@@ -123,26 +125,24 @@ export default class AudioPlayer {
   }
 
   /**
-   * Binds WaveSurfer lifecycle events (decode, ready, finish)
-   * and Region plugin events (created, updated, clicked).
+   * Binds internal WaveSurfer and Region events.
    */
   setupWaveSurferEvents() {
-    // Decoding finished
     this.wavesurfer.on("decode", () => {
       const buffer = this.wavesurfer.getDecodedData();
       if (buffer) {
         this.originalBuffer = buffer;
         requestAnimationFrame(() => this.initEqualizer());
+        requestAnimationFrame(() => this.setupKnobListeners());
       }
     });
 
-    // Player Ready
     this.wavesurfer.on("ready", async () => {
       this.initEqualizer();
       this.createTrimUI();
       this.initMagnetUI();
       await this.detectBPM();
-      
+
       const plusWrapper = document.getElementById("plus-wrapper");
       if (plusWrapper) plusWrapper.remove();
 
@@ -150,16 +150,14 @@ export default class AudioPlayer {
       this.initTrimCurtains();
     });
 
-    // Playback Events
     this.wavesurfer.on("click", () => this.clearLoop());
-    
+
     this.wavesurfer.on("finish", () => {
       if (this.isLooping && !this.currentRegion) {
         this.wavesurfer.play();
       }
     });
 
-    // Region Events
     this.regions.on("region-created", (region) => {
       if (this.isSystemRegion(region)) return;
       this.handleRegionCreated(region);
@@ -189,8 +187,7 @@ export default class AudioPlayer {
   }
 
   /**
-   * Resumes AudioContext if suspended and ensures Equalizer is initialized.
-   * @returns {Promise<void>}
+   * Resumes AudioContext if suspended and re-initializes EQ.
    */
   initAudio() {
     if (!this.audioContext) this.audioContext = new AudioContext();
@@ -200,8 +197,8 @@ export default class AudioPlayer {
   }
 
   /**
-   * Loads an audio file from a Blob/File URL into WaveSurfer.
-   * @param {string} file - The object URL of the file.
+   * Loads a file blob into the player.
+   * @param {string} file - Blob URL.
    */
   async loadAudioFile(file) {
     if (!file) return;
@@ -213,9 +210,8 @@ export default class AudioPlayer {
   }
 
   /**
-   * Converts a processed AudioBuffer into a blob and reloads the player logic.
-   * Used after destructive edits (trim, freeze effect).
-   * @param {AudioBuffer} buffer - The modified audio buffer.
+   * Reloads the player with a new audio buffer (e.g. after freezing effect).
+   * @param {AudioBuffer} buffer 
    */
   async reloadWithBuffer(buffer) {
     const blob = bufferToWave(buffer, buffer.length);
@@ -234,28 +230,24 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Determines if a region is a UI element (curtains/trim) rather than a user region.
-   * @param {Object} region - The region to check.
-   * @returns {boolean} True if system region.
+   * Checks if a region is a UI curtain or trim handle.
    */
   isSystemRegion(region) {
     return region.id === "left-curtain" || region.id === "right-curtain" || region.id === "trim-region";
   }
 
   /**
-   * Configures a newly created region with a custom delete button
-   * and drag-and-drop effect capabilities.
-   * @param {Object} region - The region object.
+   * Adds custom UI (Close button, Drop logic) to a new region.
+   * @param {Object} region 
    */
   handleRegionCreated(region) {
     const regionElement = region.element;
 
-    // Create Delete Button
     const deleteBtn = document.createElement('div');
     deleteBtn.className = 'region-close-btn';
     deleteBtn.textContent = 'x';
     deleteBtn.title = "Delete Region";
-    
+
     Object.assign(deleteBtn.style, {
       position: 'absolute',
       top: '5px',
@@ -291,8 +283,6 @@ export default class AudioPlayer {
     });
 
     regionElement.appendChild(deleteBtn);
-
-    // Setup Drag/Drop Events for Effects
     this.setupRegionDropZone(region, regionElement);
 
     region.on("dblclick", (e) => {
@@ -304,9 +294,7 @@ export default class AudioPlayer {
   }
 
   /**
-   * Sets up drag events on a region element to accept dropped effects.
-   * @param {Object} region - The region object.
-   * @param {HTMLElement} element - The DOM element of the region.
+   * Configures Drag & Drop behavior on regions for applying effects.
    */
   setupRegionDropZone(region, element) {
     element.addEventListener("dragover", (e) => {
@@ -340,40 +328,24 @@ export default class AudioPlayer {
         element.style.backgroundColor = "color-mix(in srgb, var(--lgrey) 30%, transparent)";
         setTimeout(() => { if (element) element.style.backgroundColor = originalColor; }, 300);
 
-        // Apply Logic
+        // Routing Logic
         if (effectType === "reverse") {
           this.applyDirectEffect(region, "reverse");
-        } else if (effectType === "distortion") {
-          this.activateRealTimePreview(region, "distortion");
+        } else if (["distortion", "delay", "bitcrush"].includes(effectType)) {
+          this.activateRealTimePreview(region, effectType);
         }
       }
     });
   }
 
-  /**
-   * Callback for region updates. (Currently unused logic hook).
-   * @param {Object} region 
-   */
-  handleRegionUpdated(region) {
-    // Logic for logging updates can go here if needed
-  }
+  handleRegionUpdated(region) { }
 
-  /**
-   * Handles click interaction on a region, setting it as active.
-   * @param {Object} region 
-   * @param {Event} e 
-   */
   handleRegionClick(region, e) {
     e.stopPropagation();
     this.setCurrentRegion(region);
   }
 
-  /**
-   * Sets the visual state (color, z-index) for the currently selected region.
-   * @param {Object} region - The selected region.
-   */
   setCurrentRegion(region) {
-    // Deselect current
     if (this.currentRegion) {
       this.currentRegion.setOptions({ color: "rgba(255, 255, 255, 0.1)" });
       if (this.currentRegion.element) {
@@ -383,23 +355,17 @@ export default class AudioPlayer {
     }
 
     this.currentRegion = region;
-
-    // Select new
     region.setOptions({ color: "rgba(255, 255, 255, 0.2)" });
+
     if (region.element) {
       region.element.style.boxSizing = "border-box";
       region.element.style.border = "1px solid rgba(255, 255, 255, 0.5)";
       region.element.style.zIndex = "100";
     }
 
-    if (this.wavesurfer.isPlaying()) {
-      region.play();
-    }
+    if (this.wavesurfer.isPlaying()) region.play();
   }
 
-  /**
-   * Clears the currently active region selection and loop state.
-   */
   clearLoop() {
     if (!this.currentRegion) return;
     this.currentRegion.setOptions({ color: "rgba(255, 255, 255, 0.1)" });
@@ -415,24 +381,24 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Initializes the Web Audio API graph.
-   * Routing: Source -> [PreviewEffect?] -> EQ -> Destination.
-   * Re-runs dynamically when effects are enabled/disabled.
-   */
+     * Rebuilds the audio node graph including Master Gain.
+     * Path: Source -> [Effects] -> EQ -> MasterGain -> Destination.
+     */
   initEqualizer() {
     const audio = this.wavesurfer.getMediaElement();
     if (!audio) return;
-
     audio.crossOrigin = "anonymous";
 
-    // Avoid recreation if preview is active to prevent glitches
-    if (this.eqInitialized && this.mediaNode && this.eqInputNode && this.previewEffectNode) return;
+    // Create Master Gain if missing
+    if (!this.masterGainNode) {
+      this.masterGainNode = this.audioContext.createGain();
+      this.masterGainNode.gain.value = 0.8;
+    }
 
-    // Create Base Nodes
     if (!this.mediaNode) this.mediaNode = this.audioContext.createMediaElementSource(audio);
     if (!this.eqInputNode) this.eqInputNode = this.audioContext.createGain();
 
-    // Create Filters if missing
+    // ... (Filter creation logic stays the same) ...
     if (this.filters.length === 0) {
       this.filters = eqBands.map((band) => {
         const filter = this.audioContext.createBiquadFilter();
@@ -447,33 +413,50 @@ export default class AudioPlayer {
 
     // Disconnect everything
     try { this.mediaNode.disconnect(); } catch (e) { }
-    try { if (this.previewEffectNode) this.previewEffectNode.disconnect(); } catch (e) { }
     try { this.eqInputNode.disconnect(); } catch (e) { }
+    try { if (this.previewEffectNode) this.previewEffectNode.disconnect(); } catch (e) { }
+    try { if (this.delayNode) this.delayNode.disconnect(); } catch (e) { }
+    try { if (this.feedbackNode) this.feedbackNode.disconnect(); } catch (e) { }
     this.filters.forEach(f => { try { f.disconnect(); } catch (e) { } });
+    this.masterGainNode.disconnect(); // Disconnect master
 
     // Routing Logic
-    if (this.previewEffectNode) {
-      // With Live Effect: Source -> Preview -> EQ -> Dest
-      this.mediaNode.connect(this.previewEffectNode);
-      this.previewEffectNode.connect(this.eqInputNode);
-    } else {
-      // Normal: Source -> EQ -> Dest
-      this.mediaNode.connect(this.eqInputNode);
+    let chainOut = this.mediaNode;
+
+    if (this.currentEffectType === 'distortion' && this.previewEffectNode) {
+      chainOut.connect(this.previewEffectNode);
+      chainOut = this.previewEffectNode;
+    }
+    else if (this.currentEffectType === 'delay' && this.delayNode) {
+      this.mediaNode.connect(this.eqInputNode); // Dry path
+      chainOut.connect(this.delayNode);
+      this.delayNode.connect(this.feedbackNode);
+      this.feedbackNode.connect(this.delayNode);
+      chainOut = this.delayNode; // Wet path
+    }
+    else if (this.currentEffectType === 'bitcrush' && this.previewEffectNode) {
+      chainOut.connect(this.previewEffectNode);
+      chainOut = this.previewEffectNode;
     }
 
-    // Connect EQ Chain
+    chainOut.connect(this.eqInputNode);
+
+    // EQ Chain
     let currentNode = this.eqInputNode;
     this.filters.forEach((filter) => {
       currentNode.connect(filter);
       currentNode = filter;
     });
 
-    currentNode.connect(this.audioContext.destination);
+    // FINAL OUTPUT: EQ -> Master Gain -> Speakers
+    currentNode.connect(this.masterGainNode);
+    this.masterGainNode.connect(this.audioContext.destination);
+
     this.eqInitialized = true;
   }
 
   /**
-   * Connects HTML range sliders to the EQ Gain nodes.
+   * Links HTML range inputs to EQ filter gains.
    */
   connectSliders() {
     const sliders = document.querySelectorAll(".slider-eq");
@@ -492,9 +475,7 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Applies a destructive effect immediately (e.g., Reverse).
-   * @param {Object} region - The region to process.
-   * @param {string} type - The effect type (e.g., 'reverse').
+   * Applies synchronous effects (like Reverse) immediately.
    */
   async applyDirectEffect(region, type) {
     if (!this.originalBuffer) return;
@@ -511,34 +492,94 @@ export default class AudioPlayer {
   }
 
   /**
-   * Activates a real-time listening preview for effects (e.g., Distortion).
-   * Reroutes audio through a temporary effect node.
-   * @param {Object} region - The region to preview.
-   * @param {string} type - The effect type.
+   * Activates live preview for adjustable effects (Distortion, Delay, Bitcrush).
+   * Creates necessary AudioNodes and UI controls.
    */
   activateRealTimePreview(region, type) {
-    this.closeEffectPanel();
+    this.closeEffectPanel(); // Clean previous
 
     this.activeRegion = region;
     this.currentEffectType = type;
-    this.effectParams = { amount: 50 };
 
+    // Initialize specific nodes based on effect type
     if (type === 'distortion') {
+      this.effectParams = { amount: 50 };
       this.previewEffectNode = this.audioContext.createWaveShaper();
       this.previewEffectNode.curve = makeDistortionCurve(this.effectParams.amount);
       this.previewEffectNode.oversample = '4x';
     }
+    else if (type === 'delay') {
+      this.effectParams = { time: 0.25, feedback: 0.4 };
+      this.delayNode = this.audioContext.createDelay(2.0);
+      this.delayNode.delayTime.value = this.effectParams.time;
+      this.feedbackNode = this.audioContext.createGain();
+      this.feedbackNode.gain.value = this.effectParams.feedback;
+    }
+    else if (type === 'bitcrush') {
+      this.effectParams = { bits: 8, normFreq: 0.1 };
+      // ScriptProcessor used for live preview convenience (simple bit reduction logic)
+      const bufferSize = 4096;
+      this.previewEffectNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+      this.previewEffectNode.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const output = e.outputBuffer.getChannelData(0);
+        const step = 1 / Math.pow(2, this.effectParams.bits);
+        const stepSize = Math.floor(1 / this.effectParams.normFreq);
 
-    // Re-route audio
+        for (let i = 0; i < bufferSize; i++) {
+          if (i % stepSize === 0) {
+            output[i] = Math.round(input[i] / step) * step; // Quantize
+          } else {
+            output[i] = (i > 0) ? output[i - 1] : 0; // Sample & Hold
+          }
+        }
+      };
+    }
+
+    // Re-route audio graph to include new nodes
     this.eqInitialized = false;
     this.initEqualizer();
-    region.playLoop();
+    region.play();
     this.createEffectControlsUI(type);
   }
 
   /**
-   * Builds the DOM UI for controlling live effect parameters (sliders/buttons).
-   * @param {string} type - The effect type to display controls for.
+   * Helper: Creates a styled slider element for the Effect UI.
+   */
+  createSlider(labelText, min, max, step, value, onInput) {
+    const wrapper = document.createElement("div");
+    wrapper.style.marginBottom = "10px";
+
+    const label = document.createElement("span");
+    label.innerText = `${labelText}: `;
+
+    const valDisplay = document.createElement("span");
+    valDisplay.innerText = value;
+    valDisplay.style.marginLeft = "5px";
+    valDisplay.style.color = "#aaa";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = min;
+    slider.max = max;
+    slider.step = step;
+    slider.value = value;
+    slider.style.width = "100%";
+
+    slider.oninput = (e) => {
+      const val = parseFloat(e.target.value);
+      valDisplay.innerText = val;
+      onInput(val);
+    };
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(slider);
+    wrapper.appendChild(valDisplay);
+    return wrapper;
+  }
+
+  /**
+   * Generates the floating UI panel for effect parameters.
    */
   createEffectControlsUI(type) {
     let container = document.getElementById("effect-controls-wrapper");
@@ -548,7 +589,7 @@ export default class AudioPlayer {
       Object.assign(container.style, {
         position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)",
         backgroundColor: "#222", padding: "15px", borderRadius: "8px",
-        border: "1px solid #444", color: "white", zIndex: "1000"
+        border: "1px solid #444", color: "white", zIndex: "1000", minWidth: "250px"
       });
       document.body.appendChild(container);
     }
@@ -561,45 +602,46 @@ export default class AudioPlayer {
     title.style.margin = "0 0 10px 0";
     container.appendChild(title);
 
+    // --- DYNAMIC SLIDERS ---
     if (type === 'distortion') {
-      const wrapper = document.createElement("div");
-      wrapper.style.marginBottom = "10px";
-      
-      const label = document.createElement("span");
-      label.innerText = "Drive: ";
-      
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.min = "0";
-      slider.max = "400";
-      slider.value = this.effectParams.amount;
-
-      slider.oninput = (e) => {
-        const val = parseFloat(e.target.value);
+      container.appendChild(this.createSlider("Drive", 0, 400, 1, this.effectParams.amount, (val) => {
         this.effectParams.amount = val;
-        if (this.previewEffectNode) {
-          this.previewEffectNode.curve = makeDistortionCurve(val);
-        }
-      };
-
-      wrapper.appendChild(label);
-      wrapper.appendChild(slider);
-      container.appendChild(wrapper);
+        if (this.previewEffectNode) this.previewEffectNode.curve = makeDistortionCurve(val);
+      }));
+    }
+    else if (type === 'delay') {
+      container.appendChild(this.createSlider("Time (s)", 0.01, 1.0, 0.01, this.effectParams.time, (val) => {
+        this.effectParams.time = val;
+        if (this.delayNode) this.delayNode.delayTime.linearRampToValueAtTime(val, this.audioContext.currentTime + 0.1);
+      }));
+      container.appendChild(this.createSlider("Feedback", 0, 0.9, 0.05, this.effectParams.feedback, (val) => {
+        this.effectParams.feedback = val;
+        if (this.feedbackNode) this.feedbackNode.gain.value = val;
+      }));
+    }
+    else if (type === 'bitcrush') {
+      container.appendChild(this.createSlider("Bits", 1, 16, 1, this.effectParams.bits, (val) => {
+        this.effectParams.bits = val;
+      }));
+      container.appendChild(this.createSlider("Freq (Norm)", 0.01, 1, 0.01, this.effectParams.normFreq, (val) => {
+        this.effectParams.normFreq = val;
+      }));
     }
 
-    // Action Buttons
+    // --- BUTTONS ---
     const btnContainer = document.createElement("div");
     btnContainer.style.display = "flex";
     btnContainer.style.gap = "10px";
+    btnContainer.style.marginTop = "15px";
 
     const freezeBtn = document.createElement("button");
-    freezeBtn.innerText = "APPLY (Freeze)";
-    Object.assign(freezeBtn.style, { background: "green", color: "white", border: "none", padding: "5px 10px", cursor: "pointer" });
+    freezeBtn.innerText = "FREEZE";
+    Object.assign(freezeBtn.style, { background: "var(--color-green)", color: "#000", border: "none", padding: "8px 15px", cursor: "pointer", fontWeight: "bold" });
     freezeBtn.onclick = () => this.freezeCurrentEffect();
 
     const cancelBtn = document.createElement("button");
-    cancelBtn.innerText = "Cancel";
-    Object.assign(cancelBtn.style, { background: "#555", color: "white", border: "none", padding: "5px 10px", cursor: "pointer" });
+    cancelBtn.innerText = "CANCEL";
+    Object.assign(cancelBtn.style, { background: "#555", color: "white", border: "none", padding: "8px 15px", cursor: "pointer" });
     cancelBtn.onclick = () => this.closeEffectPanel();
 
     btnContainer.appendChild(freezeBtn);
@@ -608,11 +650,10 @@ export default class AudioPlayer {
   }
 
   /**
-   * Renders the current real-time effect permanently into the audio buffer
-   * and reloads the player.
+   * Freezes the current live effect into the audio buffer permanently.
    */
   async freezeCurrentEffect() {
-    if (!this.previewEffectNode || !this.activeRegion) return;
+    if (!this.activeRegion) return;
     try {
       const newBuffer = await processRange(
         this.originalBuffer,
@@ -630,17 +671,257 @@ export default class AudioPlayer {
   }
 
   /**
-   * Closes the effect control panel and cleans up preview audio nodes.
+   * Closes effect UI and resets the audio graph to Clean state.
    */
   closeEffectPanel() {
-    const container = document.getElementById("effect-controls-container");
+    const container = document.getElementById("effect-controls-wrapper");
     if (container) container.style.display = "none";
 
+    // Clean up nodes
     this.previewEffectNode = null;
+    this.delayNode = null;
+    this.feedbackNode = null;
+
     this.activeRegion = null;
     this.currentEffectType = null;
-    
-    // Reset routing
+
+    // Reset Graph
+    this.eqInitialized = false;
+    this.initEqualizer();
+  }
+
+  /**
+   * Sets up mouse-drag listeners for the 3 knobs (P1, P2, Vol) 
+   * and the Freeze button click.
+   */
+  setupKnobListeners() {
+    // FREEZE BUTTON
+    const freezeBtn = document.getElementById("freeze-btn");
+    if (freezeBtn) {
+      freezeBtn.addEventListener("click", () => this.freezeCurrentEffect());
+    }
+
+    // KNOB DRAG LOGIC
+    const setupDrag = (knobId, onInput) => {
+      const knob = document.getElementById(`knob-${knobId}`);
+      if (!knob) return;
+
+      let startY = 0;
+      let startVal = 0;
+
+      const onMouseMove = (e) => {
+        const delta = startY - e.clientY; // Up = positive
+        const sensitivity = 0.005;
+        let newVal = startVal + (delta * sensitivity);
+        newVal = Math.max(0, Math.min(1, newVal)); // Clamp 0-1
+
+        this.updateKnobVisual(knob, newVal);
+        onInput(newVal);
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = 'default';
+      };
+
+      knob.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startY = e.clientY;
+        startVal = parseFloat(knob.dataset.value) || 0;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = 'ns-resize';
+      });
+    };
+
+    // Bind P1 -> Param 1
+    setupDrag('p1', (val) => {
+      if (!this.currentEffectType) return;
+      this.updateEffectParam(1, val);
+    });
+
+    // Bind P2 -> Param 2
+    setupDrag('p2', (val) => {
+      if (!this.currentEffectType) return;
+      this.updateEffectParam(2, val);
+    });
+
+    // Bind Vol -> Master Gain
+    setupDrag('vol', (val) => {
+      if (this.masterGainNode) {
+        this.masterGainNode.gain.value = val;
+        document.getElementById('val-vol').innerText = Math.round(val * 100) + "%";
+      }
+    });
+  }
+
+  /**
+   * Updates the rotation of the visual knob.
+   * Maps 0.0-1.0 to -135deg to +135deg.
+   */
+  updateKnobVisual(knobElement, normalizedValue) {
+    knobElement.dataset.value = normalizedValue;
+    const deg = (normalizedValue * 270) - 135;
+    const indicator = knobElement.querySelector('.knob-indicator');
+    if (indicator) {
+      indicator.style.transform = `translate(-50%, -100%) rotate(${deg}deg)`;
+    }
+  }
+
+  /**
+   * Translates normalized knob values (0-1) to actual Audio AudioParams
+   * based on the currently active effect type.
+   */
+  updateEffectParam(knobIndex, normalizedValue) {
+    const type = this.currentEffectType;
+
+    if (type === 'distortion') {
+      // Knob 1: Drive (0 - 400)
+      if (knobIndex === 1) {
+        const val = normalizedValue * 400;
+        this.effectParams.amount = val;
+        document.getElementById('val-p1').innerText = Math.floor(val);
+        if (this.previewEffectNode) this.previewEffectNode.curve = makeDistortionCurve(val);
+      }
+    }
+    else if (type === 'delay') {
+      // Knob 1: Time (0.01 - 1.0s)
+      if (knobIndex === 1) {
+        const val = 0.01 + (normalizedValue * 0.99);
+        this.effectParams.time = val;
+        document.getElementById('val-p1').innerText = val.toFixed(2) + "s";
+        if (this.delayNode) this.delayNode.delayTime.linearRampToValueAtTime(val, this.audioContext.currentTime + 0.1);
+      }
+      // Knob 2: Feedback (0 - 0.9)
+      if (knobIndex === 2) {
+        const val = normalizedValue * 0.9;
+        this.effectParams.feedback = val;
+        document.getElementById('val-p2').innerText = Math.floor(val * 100) + "%";
+        if (this.feedbackNode) this.feedbackNode.gain.value = val;
+      }
+    }
+    else if (type === 'bitcrush') {
+      // Knob 1: Bits (1 = LoFi, 16 = HiFi)
+      if (knobIndex === 1) {
+        const val = 1 + Math.floor(normalizedValue * 15);
+        this.effectParams.bits = val;
+        document.getElementById('val-p1').innerText = val + "bit";
+      }
+      // Knob 2: Freq (0.01 - 1.0)
+      if (knobIndex === 2) {
+        const val = 0.01 + (normalizedValue * 0.99);
+        this.effectParams.normFreq = val;
+        document.getElementById('val-p2').innerText = val.toFixed(2) + "x";
+      }
+    }
+  }
+
+  /**
+   * Activates live preview using the fixed Knobs UI.
+   * Maps effect defaults to the physical knobs.
+   */
+  activateRealTimePreview(region, type) {
+    // 1. Reset State
+    this.closeEffectPanel();
+    this.activeRegion = region;
+    this.currentEffectType = type;
+
+    // 2. Get UI Elements
+    const lbl1 = document.getElementById('label-p1');
+    const lbl2 = document.getElementById('label-p2');
+    const knob1 = document.getElementById('knob-p1');
+    const knob2 = document.getElementById('knob-p2');
+
+    // 3. Define Defaults (Normalized 0-1)
+    let def1 = 0.5;
+    let def2 = 0.5;
+
+    // 4. Initialize Nodes & Params
+    if (type === 'distortion') {
+      lbl1.innerText = "DRIVE";
+      lbl2.innerText = "---";
+      this.effectParams = { amount: 50 };
+      def1 = 50 / 400;
+
+      this.previewEffectNode = this.audioContext.createWaveShaper();
+      this.previewEffectNode.curve = makeDistortionCurve(this.effectParams.amount);
+      this.previewEffectNode.oversample = '4x';
+    }
+    else if (type === 'delay') {
+      lbl1.innerText = "TIME";
+      lbl2.innerText = "F.BACK";
+      this.effectParams = { time: 0.25, feedback: 0.4 };
+      def1 = 0.25;
+      def2 = 0.4 / 0.9;
+
+      this.delayNode = this.audioContext.createDelay(2.0);
+      this.delayNode.delayTime.value = this.effectParams.time;
+      this.feedbackNode = this.audioContext.createGain();
+      this.feedbackNode.gain.value = this.effectParams.feedback;
+    }
+    else if (type === 'bitcrush') {
+      lbl1.innerText = "BITS";
+      lbl2.innerText = "FREQ";
+      this.effectParams = { bits: 8, normFreq: 0.1 };
+      def1 = 8 / 16;
+      def2 = 0.1;
+
+      const bufferSize = 4096;
+      this.previewEffectNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+      this.previewEffectNode.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const output = e.outputBuffer.getChannelData(0);
+        const step = 1 / Math.pow(2, this.effectParams.bits);
+        const stepSize = Math.floor(1 / this.effectParams.normFreq);
+
+        for (let i = 0; i < bufferSize; i++) {
+          if (i % stepSize === 0) {
+            output[i] = Math.round(input[i] / step) * step;
+          } else {
+            output[i] = (i > 0) ? output[i - 1] : 0;
+          }
+        }
+      };
+    }
+
+    // 5. Update Knobs Visuals & Values
+    this.updateKnobVisual(knob1, def1);
+    this.updateEffectParam(1, def1);
+
+    if (type !== 'distortion') {
+      this.updateKnobVisual(knob2, def2);
+      this.updateEffectParam(2, def2);
+    } else {
+      this.updateKnobVisual(knob2, 0); // Reset unused knob
+      document.getElementById('val-p2').innerText = "--";
+    }
+
+    // 6. Start Audio
+    this.eqInitialized = false;
+    this.initEqualizer();
+    region.playLoop();
+  }
+
+  /**
+   * Resets audio graph to clean state and clears effect nodes.
+   */
+  closeEffectPanel() {
+    // Reset nodes
+    this.previewEffectNode = null;
+    this.delayNode = null;
+    this.feedbackNode = null;
+
+    this.activeRegion = null;
+    this.currentEffectType = null;
+
+    // Reset UI Labels (Optional)
+    const lbl1 = document.getElementById('label-p1');
+    const lbl2 = document.getElementById('label-p2');
+    if (lbl1) lbl1.innerText = "PARAM 1";
+    if (lbl2) lbl2.innerText = "PARAM 2";
+
+    // Refresh Graph
     this.eqInitialized = false;
     this.initEqualizer();
   }
@@ -649,15 +930,11 @@ export default class AudioPlayer {
   // TRIM & EDITING TOOLS
   // ===========================================================================
 
-  /**
-   * Initializes the left/right "curtains" (regions) used for trimming audio.
-   */
   initTrimCurtains() {
     const duration = this.wavesurfer.getDuration();
     const shadowColor = "rgba(0, 0, 0, 0.65)";
     const handleColor = "var(--color-red)";
 
-    // Clean old curtains
     this.regions.getRegions().forEach(r => {
       if (r.id === "left-curtain" || r.id === "right-curtain") r.remove();
     });
@@ -665,32 +942,22 @@ export default class AudioPlayer {
     this.leftCurtain = this.regions.addRegion({
       id: "left-curtain", start: 0, end: 0, color: shadowColor,
       drag: false, resize: true, loop: false,
-      handleStyle: {
-        left: { display: "none" },
-        right: { backgroundColor: handleColor, width: "4px", opacity: "1", zIndex: "10" }
-      }
+      handleStyle: { left: { display: "none" }, right: { backgroundColor: handleColor, width: "4px", opacity: "1", zIndex: "10" } }
     });
 
     this.rightCurtain = this.regions.addRegion({
       id: "right-curtain", start: duration, end: duration, color: shadowColor,
       drag: false, resize: true, loop: false,
-      handleStyle: {
-        left: { backgroundColor: handleColor, width: "4px", opacity: "1", zIndex: "10" },
-        right: { display: "none" }
-      }
+      handleStyle: { left: { backgroundColor: handleColor, width: "4px", opacity: "1", zIndex: "10" }, right: { display: "none" } }
     });
   }
 
-  /**
-   * Creates the DOM elements for the custom Trim UI (handles and overlays).
-   */
   createTrimUI() {
     const container = document.getElementById("waveform");
     container.querySelectorAll('.trim-ui-element').forEach(el => el.remove());
 
     this.trimUI = { container };
 
-    // Create UI Elements
     this.trimUI.leftOverlay = document.createElement('div');
     this.trimUI.leftOverlay.className = 'trim-overlay trim-ui-element';
     this.trimUI.leftOverlay.style.cssText = "left: 0; width: 0%;";
@@ -709,19 +976,11 @@ export default class AudioPlayer {
     this.trimUI.rightHandle.innerText = "|";
     this.trimUI.rightHandle.style.cssText = "left: 100%; transform: translateX(-100%);";
 
-    // Append
     container.append(this.trimUI.leftOverlay, this.trimUI.rightOverlay, this.trimUI.leftHandle, this.trimUI.rightHandle);
-
-    // Enable Drag
     this.enableDrag(this.trimUI.leftHandle, 'left');
     this.enableDrag(this.trimUI.rightHandle, 'right');
   }
 
-  /**
-   * Adds drag logic to Trim UI handles.
-   * @param {HTMLElement} element - The handle to drag.
-   * @param {string} type - 'left' or 'right'.
-   */
   enableDrag(element, type) {
     let isDragging = false;
 
@@ -763,9 +1022,6 @@ export default class AudioPlayer {
     });
   }
 
-  /**
-   * Slices the main buffer based on Trim UI handle positions and reloads.
-   */
   async trimAudio() {
     if (!this.originalBuffer || !this.trimUI) return;
 
@@ -784,7 +1040,7 @@ export default class AudioPlayer {
 
     const startFrame = Math.floor(startRatio * this.originalBuffer.length);
     const endFrame = Math.floor(endRatio * this.originalBuffer.length);
-    
+
     if (endFrame - startFrame <= 0) return;
 
     const trimmedBuffer = sliceBuffer(
@@ -805,9 +1061,6 @@ export default class AudioPlayer {
   // BPM & MAGNET TOOLS
   // ===========================================================================
 
-  /**
-   * Configures the BeatDetect instance for Tap Tempo logic.
-   */
   initBeatDetect() {
     this.lockTimer = null;
     this.lastTapTime = 0;
@@ -834,9 +1087,6 @@ export default class AudioPlayer {
     });
   }
 
-  /**
-   * Analyses the current audio buffer to automatically detect BPM.
-   */
   async detectBPM() {
     this.beatDetect.getBeatInfo({ url: this.currentAudioURL })
       .then((info) => {
@@ -846,9 +1096,6 @@ export default class AudioPlayer {
       .catch((error) => { /* Handle error silently */ });
   }
 
-  /**
-   * Adds the Magnet button and Quantization dropdown to the BPM UI.
-   */
   initMagnetUI() {
     const bpmWrapper = document.querySelector(".bpm-led-wrapper");
     if (!bpmWrapper) return;
@@ -856,7 +1103,6 @@ export default class AudioPlayer {
     const magnetContainer = document.createElement("div");
     magnetContainer.style.cssText = "display:flex; align-items:center; gap:5px; margin-top:10px; justify-content:center;";
 
-    // Magnet Button
     const magnetBtn = document.createElement("div");
     magnetBtn.innerHTML = '<i class="fa-solid fa-magnet"></i>';
     magnetBtn.title = "Toggle Snap to Grid";
@@ -869,7 +1115,6 @@ export default class AudioPlayer {
       magnetBtn.style.borderColor = activeColor;
     };
 
-    // Quantize Select
     const quantizeSelect = document.createElement("select");
     quantizeSelect.style.cssText = "background-color:#222; color:white; border:1px solid #444; border-radius:4px; padding:2px; fontFamily:Pixelify Sans;";
 
@@ -882,15 +1127,10 @@ export default class AudioPlayer {
     });
 
     quantizeSelect.onchange = (e) => this.quantizeVal = parseInt(e.target.value);
-
     magnetContainer.append(magnetBtn, quantizeSelect);
     bpmWrapper.appendChild(magnetContainer);
   }
 
-  /**
-   * Aligns region boundaries to the nearest grid line based on BPM and Quantization.
-   * @param {Object} region - The region to snap.
-   */
   snapRegionToGrid(region) {
     const activeBpm = this.bpm > 0 ? this.bpm : 120;
     const beatDuration = 60 / activeBpm;
@@ -906,9 +1146,6 @@ export default class AudioPlayer {
     }
   }
 
-  /**
-   * Enables double-click on BPM LED to manually enter BPM value.
-   */
   setupBpmInput() {
     const bpmLed = document.getElementById("bpm-led");
     if (!bpmLed) return;
@@ -945,12 +1182,7 @@ export default class AudioPlayer {
   // UI EVENT LISTENERS
   // ===========================================================================
 
-  /**
-   * Attaches event listeners to global UI buttons (Play, Pause, Stop, etc.)
-   * and keyboard shortcuts.
-   */
   setupEventListeners() {
-    // Playback Controls
     document.getElementById("play-button").addEventListener("click", () => this.wavesurfer.play());
     document.getElementById("pause-button").addEventListener("click", () => this.wavesurfer.pause());
     document.getElementById("stop-button").addEventListener("click", () => {
@@ -963,7 +1195,6 @@ export default class AudioPlayer {
       document.getElementById("loop-button").classList.toggle("old-button-loop");
     });
 
-    // Zoom / Region Modifiers
     document.getElementById("x2-button").addEventListener("click", () => {
       if (this.isLooping && this.currentRegion) {
         this.regions.clearRegions();
@@ -991,7 +1222,6 @@ export default class AudioPlayer {
 
     document.getElementById('trim-btn').addEventListener('click', () => this.trimAudio());
 
-    // Shortcuts
     document.addEventListener("keydown", (e) => {
       if (e.key.toLowerCase() === " ") this.wavesurfer.playPause();
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -1004,14 +1234,10 @@ export default class AudioPlayer {
       }
     });
 
-    // Drag and Drop Logic
     this.setupGlobalDragDrop();
     this.setupBpmInput();
   }
 
-  /**
-   * Sets up global Drag and Drop for loading audio files into the waveform.
-   */
   setupGlobalDragDrop() {
     const dropArea = document.getElementById("waveform");
 
@@ -1029,7 +1255,7 @@ export default class AudioPlayer {
       dropArea.classList.remove("dragover");
 
       const effectType = e.dataTransfer.getData("effectType");
-      if (effectType) return; // Logic handled in Region Drop
+      if (effectType) return;
 
       const type = e.dataTransfer.getData("type");
       const url = e.dataTransfer.getData("audioUrl");
@@ -1063,19 +1289,12 @@ export default class AudioPlayer {
   // HISTORY MANAGEMENT
   // ===========================================================================
 
-  /**
-   * Saves the current audio state to history for undo functionality.
-   * @param {string} url - The current Blob URL.
-   */
   addToHistory(url) {
     this.history.push(url);
     if (this.history.length > this.maxHistory) this.history.shift();
     this.redoStack = [];
   }
 
-  /**
-   * Reverts to the previous audio state.
-   */
   undo() {
     if (this.history.length === 0) return;
     this.redoStack.push(this.currentAudioURL);
@@ -1085,9 +1304,6 @@ export default class AudioPlayer {
     this.regions.clearRegions();
   }
 
-  /**
-   * Reapplies the previously undone audio state.
-   */
   redo() {
     if (this.redoStack.length === 0) return;
     this.history.push(this.currentAudioURL);

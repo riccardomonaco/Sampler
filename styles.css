@@ -14,7 +14,7 @@
   --dgrey: hsl(var(--base-hue), var(--base-sat), 13%);
   --black: hsl(var(--base-hue), var(--base-sat), 10%);
   --white: #ffffff;
-  
+
   /* --- Backgrounds & Gradients --- */
   --bg-body: hsl(var(--base-hue), var(--base-sat), 27%);
   --bg-grad-start: hsl(var(--base-hue), var(--base-sat), 27%);
@@ -29,7 +29,7 @@
   --floppy-hover: hsl(var(--base-hue), var(--base-sat), 87%);
   --floppy-border: hsl(var(--base-hue), var(--base-sat), 60%);
   --floppy-label-text: hsl(var(--base-hue), 100%, 5%);
-  
+
   --shutter-border: hsl(var(--base-hue), var(--base-sat), 33%);
   --shutter-grad-dark: hsl(var(--base-hue), var(--base-sat), 53%);
   --shutter-grad-light: hsl(var(--base-hue), var(--base-sat), 93%);
@@ -52,10 +52,14 @@
   --led-glow: #9b9b2ecc;
 
   /* --- Functional Colors --- */
-  --color-red: hsl(5, var(--pad-sat), var(--pad-light));   /* Kick/Rec */
-  --color-ambra: hsl(35, var(--pad-sat), var(--pad-light)); /* Snare/Select */
-  --color-green: hsl(110, var(--pad-sat), 50%);             /* HiHat/Play */
-  --color-blu: hsl(205, var(--pad-sat), var(--pad-light));  /* Bass/FX */
+  --color-red: hsl(5, var(--pad-sat), var(--pad-light));
+  /* Kick/Rec */
+  --color-ambra: hsl(35, var(--pad-sat), var(--pad-light));
+  /* Snare/Select */
+  --color-green: hsl(110, var(--pad-sat), 50%);
+  /* HiHat/Play */
+  --color-blu: hsl(205, var(--pad-sat), var(--pad-light));
+  /* Bass/FX */
 
   /* --- Shadows & Glass --- */
   --shadow-heavy: hsla(var(--base-hue), 50%, 5%, 0.93);
@@ -79,9 +83,17 @@ body {
 }
 
 /* Custom Scrollbar (Chrome/Edge/Safari) */
-.banks-content::-webkit-scrollbar { width: 8px; }
-.fx-buttons::-webkit-scrollbar { width: 0px; }
-.BPM_input::-webkit-scrollbar { width: 0px; }
+.banks-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fx-buttons::-webkit-scrollbar {
+  width: 0px;
+}
+
+.BPM_input::-webkit-scrollbar {
+  width: 0px;
+}
 
 .fx-buttons::-webkit-scrollbar-track,
 .banks-content::-webkit-scrollbar-track {
@@ -93,7 +105,8 @@ body {
 .banks-content::-webkit-scrollbar-thumb {
   background: var(--lgrey);
   border: 1px solid var(--dgrey);
-  border-radius: 4px; /* Applied specifically to banks */
+  border-radius: 4px;
+  /* Applied specifically to banks */
 }
 
 /* ==========================================================================
@@ -188,7 +201,8 @@ body {
 
 /* --- Button Groups --- */
 .commands {
-  display: inline-flex; /* Corrected from 'inline flex' */
+  display: inline-flex;
+  /* Corrected from 'inline flex' */
   padding: 5px;
   background-color: var(--lgrey);
   width: 800px;
@@ -209,7 +223,8 @@ body {
 .loop-label,
 .fx-label,
 .banks-dropdown {
-  margin: 1%; /* dropdown has specific margin override below */
+  margin: 1%;
+  /* dropdown has specific margin override below */
   padding: 5px;
   font-family: "Pixelify Sans", system-ui;
   font-weight: 400;
@@ -218,8 +233,13 @@ body {
   color: var(--white);
 }
 
-.fx-label { margin: 15px; }
-.banks-dropdown { margin: 15px; }
+.fx-label {
+  margin: 15px;
+}
+
+.banks-dropdown {
+  margin: 15px;
+}
 
 .banks-label {
   margin-bottom: -10px;
@@ -277,6 +297,8 @@ body {
   color: var(--led-green-text-active);
   text-shadow: 0px 0px 20px var(--glow-yellow);
 }
+
+.bpm-led-wrapper {}
 
 /* ==========================================================================
    5. WAVEFORM & EQUALIZER
@@ -469,7 +491,9 @@ body {
   background-color: var(--floppy-hover);
 }
 
-.floppy-disk:active { cursor: grabbing; }
+.floppy-disk:active {
+  cursor: grabbing;
+}
 
 .floppy-label {
   font-family: monospace;
@@ -491,7 +515,9 @@ body {
   border-radius: 1px;
 }
 
-.floppy-first-row { display: grid; }
+.floppy-first-row {
+  display: grid;
+}
 
 .fx-img {
   width: 100%;
@@ -523,7 +549,8 @@ body {
   right: 0;
   width: 24px;
   height: 24px;
-  background-color: var(--color-red); /* Mapped to red variable */
+  background-color: var(--color-red);
+  /* Mapped to red variable */
   color: var(--white);
   font-family: monospace;
   font-size: 20px;
@@ -592,4 +619,140 @@ body {
 .trim-handle-right {
   border-radius: 4px 0 0 4px;
   right: 0;
+}
+
+/* ==========================================================================
+   9. KNOBS RACK (FIXED CONTROL SECTION)
+   ========================================================================== */
+
+/* Colonna Centrale: Flexbox Verticale */
+/* Assicura che i knob stiano tra i floppy e il BPM */
+.effects {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+/* Rack Manopole: Altezza fissa, sempre visibile */
+.knobs-rack {
+  flex: 0 0 auto; /* Non si riduce mai */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 5px;
+  background-color: var(--dgrey);
+  border-bottom: 4px solid var(--black);
+  margin-bottom: 5px;
+  gap: 2px;
+  z-index: 10;
+}
+
+/* Contenitore Singola Manopola */
+.knob-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 45px;
+}
+
+.knob-label {
+  font-family: "Pixelify Sans", system-ui;
+  font-size: 9px;
+  color: var(--llgrey);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+  margin-bottom: 2px;
+  cursor: default;
+  user-select: none;
+}
+
+/* Corpo Manopola: Vintage Hard Plastic Style */
+.knob-body {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--pad-bg) 0%, var(--black) 100%);
+  border: 1px solid var(--black);
+  /* Ombra netta per effetto pixel art */
+  box-shadow: 2px 2px 0px var(--black);
+  position: relative;
+  cursor: ns-resize;
+  transition: box-shadow 0.1s, transform 0.1s;
+}
+
+.knob-body:active {
+  box-shadow: 1px 1px 0px var(--black);
+  transform: translate(1px, 1px);
+}
+
+/* Indicatore Rotante Sottile */
+.knob-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 40%;
+  background-color: var(--white);
+  border-radius: 1px;
+  transform-origin: bottom center;
+  transform: translate(-50%, -100%) rotate(-135deg); 
+  pointer-events: none;
+  box-shadow: 0 0 2px var(--color-green);
+  transition: transform 0.05s linear;
+}
+
+/* Variante Colore Master Volume */
+#knob-vol .knob-indicator {
+  background-color: var(--color-red);
+  box-shadow: 0 0 2px var(--color-red);
+}
+
+.knob-value {
+  font-family: monospace !important;
+  font-size: 9px;
+  color: var(--screen-blue-text);
+  margin-top: 2px;
+  opacity: 0.8;
+  min-height: 12px;
+}
+
+/* Tasto Freeze (Mini Selector) */
+.freeze-btn {
+  width: 36px;
+  height: 20px;
+  background-color: var(--color-blu);
+  color: var(--black);
+  border: 1px solid var(--black);
+  border-radius: 4px; /* Unifico il radius a 4px come da primo blocco ma con dimensioni del secondo */
+  font-family: "Pixelify Sans", system-ui;
+  font-size: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 var(--black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px; /* Allineamento visivo coi knob */
+  transition: transform 0.1s;
+}
+
+.freeze-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.freeze-btn:disabled {
+  background-color: var(--dgrey);
+  color: var(--llgrey);
+  cursor: default;
+  box-shadow: none;
+}
+
+/* BPM Section: Non schiacciare */
+.bpm-led-wrapper {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
