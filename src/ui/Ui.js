@@ -1,12 +1,15 @@
 import { eqBands, soundBanks } from "../audio/AudioUtils";
 
-const bankSelect = document.getElementById("banks"); // La Select
+const bankSelect = document.getElementById("banks");
 const banksContent = document.querySelector(".banks-content");
 
+// ===========================================================================
+// MAIN LAYOUT CREATORS
+// ===========================================================================
+
 /**
- *
- *
- * @return {*}
+ * Constructs the main Sampler interface (Waveform + EQ + Transport).
+ * @return {HTMLElement} The sampler wrapper element.
  */
 function createSampler() {
   const samplerMain = document.createElement("div");
@@ -29,17 +32,16 @@ function createSampler() {
 }
 
 /**
- *
- *
- * @return {*}
+ * Constructs the Effects sidebar (Loop controls + Effect slots).
+ * @return {HTMLElement} The effects wrapper element.
  */
 function createEffects() {
-  //MAIN SIDE WRAPPER
+  // MAIN SIDE WRAPPER
   const effects = document.createElement("div");
   effects.classList.add("effects");
   effects.classList.add("border-shadow");
 
-  //LOOP CONTROL WRAPPER
+  // LOOP CONTROL WRAPPER
   const loopButtons = document.createElement("div");
   loopButtons.classList.add("loop-buttons");
 
@@ -66,8 +68,6 @@ function createEffects() {
   loopLabel.classList.add("loop-label");
   loopLabel.textContent = "LOOP CONTROLS";
 
-  //EFFECTS WRAPPER
-
   effects.appendChild(loopButtons);
   effects.appendChild(loopLabel);
 
@@ -75,9 +75,8 @@ function createEffects() {
 }
 
 /**
- *
- *
- * @return {*}
+ * Creates the standard transport buttons (Play, Pause, Stop).
+ * @return {HTMLElement} The container with buttons.
  */
 function createCommandsButtons() {
   const commandButtons = document.createElement("div");
@@ -106,9 +105,8 @@ function createCommandsButtons() {
 }
 
 /**
- *
- *
- * @return {*}
+ * Creates the empty container for WaveSurfer.
+ * @return {HTMLElement} The waveform container.
  */
 function createWaveWrapper() {
   const waveContainer = document.createElement("div");
@@ -117,13 +115,32 @@ function createWaveWrapper() {
 }
 
 /**
- *
- *
- * @return {*}
+ * Assembles the complete page layout structure and appends to root.
+ */
+export function createPageDefault() {
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("wrapper");
+
+  wrapper.appendChild(createSampler());
+  wrapper.appendChild(createEffects());
+
+  // Assuming 'root' is defined globally or imported elsewhere in your app structure
+  // If strict, pass 'root' as an argument.
+  root.appendChild(wrapper); 
+}
+
+// ===========================================================================
+// EQUALIZER GENERATOR
+// ===========================================================================
+
+/**
+ * Generates EQ sliders based on the imported `eqBands` configuration.
+ * @return {HTMLElement} The populated sliders wrapper.
  */
 export default function createEqualizer() {
   const slidersContainer = document.getElementById("sliders-wrapper");
-  const sliders = eqBands.map((e) => {
+  
+  eqBands.map((e) => {
     const eqBand = document.createElement("div");
     eqBand.classList.add("eq-band");
 
@@ -134,6 +151,8 @@ export default function createEqualizer() {
     slider.max = 12;
     slider.value = 0;
     slider.step = 0.1;
+    
+    // Reset on double click
     slider.addEventListener("dblclick", (event) => {
       slider.value = 0;
       slider.dispatchEvent(new Event("input"));
@@ -151,9 +170,8 @@ export default function createEqualizer() {
 }
 
 /**
- *
- *
- * @return {*}
+ * Creates the grid container for the EQ sliders.
+ * @return {HTMLElement} The grid element.
  */
 function createEqualizerGrid() {
   const slidersGrid = document.createElement("div");
@@ -162,19 +180,10 @@ function createEqualizerGrid() {
 }
 
 /**
- *
- *
+ * Helper to format frequency numbers into Hz/kHz strings.
+ * @param {number} freq - Frequency in Hz.
+ * @returns {string} Formatted label.
  */
-export function createPageDefault() {
-  const wrapper = document.createElement("div");
-  wrapper.classList.add("wrapper");
-
-  wrapper.appendChild(createSampler());
-  wrapper.appendChild(createEffects());
-
-  root.appendChild(wrapper);
-}
-
 function formatFreqLabel(freq) {
   if (freq >= 1000) {
     return `${freq / 1000}kHz`;
@@ -182,17 +191,18 @@ function formatFreqLabel(freq) {
   return `${freq} Hz`;
 }
 
-export function createAddSample() {
-  plus = document.createElement("div");
-  plus.classList.add("");
-}
+// ===========================================================================
+// BANK & SAMPLE MANAGEMENT
+// ===========================================================================
 
+/**
+ * Generates sample pads for a selected bank name.
+ * @param {string} bankName - The key name of the bank in soundBanks.
+ */
 function createBank(bankName) {
   banksContent.innerHTML = "";
 
-  if (!bankName) {
-    return;
-  }
+  if (!bankName) return;
 
   const samples = soundBanks[bankName];
   if (!samples) return;
@@ -214,10 +224,9 @@ function createBank(bankName) {
   });
 }
 
-bankSelect.addEventListener("change", (e) => {
-  createBank(e.target.value);
-});
-
+/**
+ * Initializes the dropdown menu with available sound banks.
+ */
 export function initBankMenu() {
   bankSelect.innerHTML = "";
 
@@ -235,4 +244,16 @@ export function initBankMenu() {
     option.textContent = bankName;
     bankSelect.appendChild(option);
   });
+}
+
+// Event Listeners
+bankSelect.addEventListener("change", (e) => {
+  createBank(e.target.value);
+});
+
+// Deprecated / Placeholder
+export function createAddSample() {
+  // Assuming 'plus' is defined elsewhere or this is a WIP
+  // plus = document.createElement("div");
+  // plus.classList.add("");
 }

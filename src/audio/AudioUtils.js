@@ -1,6 +1,6 @@
 /**
  * AudioUtils.js
- * Funzioni per la manipolazione di AudioBuffer e file WAV.
+ * Functions for AudioBuffer manipulation, WAV conversion, and audio effects.
  */
 
 export const soundBanks = {
@@ -30,7 +30,17 @@ export const soundBanks = {
 
 export const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
-/* --- CONVERSIONE WAV (Little Endian / Header Corretto) --- */
+// ===========================================================================
+// WAV CONVERSION (Little Endian / Correct Headers)
+// ===========================================================================
+
+/**
+ * Converts an AudioBuffer into a WAV Blob.
+ * Handles header writing and PCM 16-bit encoding.
+ * @param {AudioBuffer} abuffer - The source buffer.
+ * @param {number} len - Optional custom length.
+ * @returns {Blob} The WAV file blob.
+ */
 export function bufferToWave(abuffer, len) {
   const numOfChan = abuffer.numberOfChannels;
   const length = len || abuffer.length;
@@ -59,7 +69,8 @@ export function bufferToWave(abuffer, len) {
   view.setUint32(40, lengthInBytes, true);
 
   const dataView = new Int16Array(buffer, 44, length * numOfChan);
-  // Ottimizzazione canali
+  
+  // Channel optimization
   const channels = [];
   for (let i = 0; i < numOfChan; i++) channels.push(abuffer.getChannelData(i));
 
@@ -75,8 +86,18 @@ export function bufferToWave(abuffer, len) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-/* --- EFFETTI MATEMATICI (Processamento Diretto) --- */
+// ===========================================================================
+// DIRECT MATH EFFECTS (Synchronous)
+// ===========================================================================
 
+/**
+ * Reverses a specific range of audio within a buffer.
+ * @param {AudioBuffer} buffer - The original buffer.
+ * @param {number} startTime - Start time in seconds.
+ * @param {number} endTime - End time in seconds.
+ * @param {AudioContext} context - The audio context to create the new buffer.
+ * @returns {AudioBuffer} The new buffer with the reversed section.
+ */
 export function reverseRange(buffer, startTime, endTime, context) {
   const numChannels = buffer.numberOfChannels;
   const sampleRate = buffer.sampleRate;
@@ -88,9 +109,9 @@ export function reverseRange(buffer, startTime, endTime, context) {
   for (let i = 0; i < numChannels; i++) {
     const originalData = buffer.getChannelData(i);
     const newData = newBuffer.getChannelData(i);
-    newData.set(originalData); // Copia tutto
+    newData.set(originalData); // Copy all
 
-    // Inverti solo il range
+    // Reverse only the range
     if (endFrame > startFrame) {
         const segment = newData.subarray(startFrame, endFrame);
         segment.reverse();
@@ -99,7 +120,15 @@ export function reverseRange(buffer, startTime, endTime, context) {
   return newBuffer;
 }
 
-/* --- HELPER DISTORSIONE --- */
+// ===========================================================================
+// EFFECT HELPERS
+// ===========================================================================
+
+/**
+ * Generates a distortion curve for the WaveShaperNode.
+ * @param {number} amount - The amount of distortion (0-400+).
+ * @returns {Float32Array} The calculated curve.
+ */
 export function makeDistortionCurve(amount) {
   const k = typeof amount === 'number' ? amount : 50;
   const n_samples = 44100;
@@ -112,30 +141,43 @@ export function makeDistortionCurve(amount) {
   return curve;
 }
 
-/* --- EFFETTI OFFLINE (Freeze / Apply) --- */
+// ===========================================================================
+// OFFLINE EFFECTS (Freeze / Apply)
+// ===========================================================================
+
+/**
+ * Renders an effect (Distortion, etc.) offline onto a specific region.
+ * Uses OfflineAudioContext to process faster than real-time.
+ * @param {AudioBuffer} originalBuffer - The source buffer.
+ * @param {number} regionStart - Start time in seconds.
+ * @param {number} regionEnd - End time in seconds.
+ * @param {string} effectType - Name of the effect ('distortion', etc.).
+ * @param {Object} params - Parameters for the effect (e.g., amount).
+ * @returns {Promise<AudioBuffer>} The final processed buffer.
+ */
 export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd, effectType, params) {
     const sampleRate = originalBuffer.sampleRate;
     const channels = originalBuffer.numberOfChannels;
     
-    // Tagliamo i tempi esatti
+    // Calculate exact frames
     const startFrame = Math.floor(regionStart * sampleRate);
     const endFrame = Math.floor(regionEnd * sampleRate);
     const lengthFrame = endFrame - startFrame;
 
     if (lengthFrame <= 0) return originalBuffer;
 
-    // 1. Setup Contesto Ridotto (solo per la clip)
+    // 1. Setup Reduced Context (Clip only)
     const clipCtx = new OfflineAudioContext(channels, lengthFrame, sampleRate);
     const clipSource = clipCtx.createBufferSource();
     
-    // 2. Estrai Clip Originale
+    // 2. Extract Original Clip
     const tempBuffer = clipCtx.createBuffer(channels, lengthFrame, sampleRate);
     for(let c=0; c<channels; c++) {
         tempBuffer.copyToChannel(originalBuffer.getChannelData(c).slice(startFrame, endFrame), c);
     }
     clipSource.buffer = tempBuffer;
 
-    // 3. Applica Effetto
+    // 3. Apply Effect
     let effectNode = null;
     if (effectType === 'distortion') {
         effectNode = clipCtx.createWaveShaper();
@@ -143,7 +185,7 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
         effectNode.oversample = '4x';
     }
 
-    // 4. Collega e Renderizza
+    // 4. Connect and Render
     if (effectNode) {
         clipSource.connect(effectNode);
         effectNode.connect(clipCtx.destination);
@@ -154,26 +196,39 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
     clipSource.start(0);
     const processedClip = await clipCtx.startRendering();
 
-    // 5. Incolla nel buffer originale (Freeze)
+    // 5. Paste into Original Buffer (Freeze)
     const finalBuffer = new OfflineAudioContext(channels, originalBuffer.length, sampleRate).createBuffer(channels, originalBuffer.length, sampleRate);
     
     for(let c=0; c<channels; c++) {
         const data = finalBuffer.getChannelData(c);
-        data.set(originalBuffer.getChannelData(c)); // Copia vecchio
-        data.set(processedClip.getChannelData(c), startFrame); // Sovrascrivi processato
+        data.set(originalBuffer.getChannelData(c)); // Copy old
+        data.set(processedClip.getChannelData(c), startFrame); // Overwrite processed
     }
 
     return finalBuffer;
 }
 
-/* --- ROUTER EFFETTI (Smistamento) --- */
+// ===========================================================================
+// MAIN EFFECT ROUTER
+// ===========================================================================
+
+/**
+ * Routes processing requests to either synchronous or asynchronous handlers.
+ * @param {AudioBuffer} buffer - Source buffer.
+ * @param {AudioContext} context - Audio context.
+ * @param {string} type - Effect type.
+ * @param {number} startTime - Region start.
+ * @param {number} endTime - Region end.
+ * @param {Object} params - Effect parameters.
+ * @returns {Promise<AudioBuffer>|AudioBuffer} The processed buffer.
+ */
 export async function processRange(buffer, context, type, startTime, endTime, params = {}) {
-  // Effetti sincroni
+  // Synchronous Effects
   if (type === 'reverse') {
     return reverseRange(buffer, startTime, endTime, context);
   }
   
-  // Effetti asincroni (Offline Rendering)
+  // Asynchronous Effects (Offline Rendering)
   if (type === 'distortion' || type === 'delay' || type === 'reverb') {
       return await renderOfflineEffect(buffer, startTime, endTime, type, params);
   }
@@ -181,7 +236,18 @@ export async function processRange(buffer, context, type, startTime, endTime, pa
   return buffer;
 }
 
-/* --- SLICE UTILS --- */
+// ===========================================================================
+// BUFFER SLICING
+// ===========================================================================
+
+/**
+ * Creates a new buffer from a slice of the original buffer (Trim).
+ * @param {AudioBuffer} buffer - Source buffer.
+ * @param {number} startRatio - Start position (0-1).
+ * @param {number} endRatio - End position (0-1).
+ * @param {AudioContext} context - Audio context.
+ * @returns {AudioBuffer|null} The sliced buffer or null if invalid.
+ */
 export function sliceBuffer(buffer, startRatio, endRatio, context) {
     const startFrame = Math.floor(startRatio * buffer.length);
     const endFrame = Math.floor(endRatio * buffer.length);
