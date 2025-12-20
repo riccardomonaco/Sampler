@@ -140,7 +140,6 @@ export default class AudioPlayer {
     this.wavesurfer.on("ready", async () => {
       this.initEqualizer();
       this.createTrimUI();
-      this.initMagnetUI();
       await this.detectBPM();
 
       const plusWrapper = document.getElementById("plus-wrapper");
@@ -166,7 +165,7 @@ export default class AudioPlayer {
     this.regions.on("region-updated", (region) => {
       if (this.isSystemRegion(region)) return;
       this.handleRegionUpdated(region);
-      if (this.isMagnetOn && this.bpm > 0) this.snapRegionToGrid(region);
+      // if (this.isMagnetOn && this.bpm > 0) this.snapRegionToGrid(region);
     });
 
     this.wavesurfer.on("region-click", (region, e) => {

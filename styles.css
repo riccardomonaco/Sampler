@@ -437,7 +437,7 @@ body {
 .fx-buttons-wrapper {
   background-color: var(--lgrey);
   width: 100%;
-  height: 56%;
+  height: 50%;
   padding-top: 10px;
   padding-bottom: 10px;
 }
@@ -446,12 +446,14 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   grid-auto-rows: min-content;
-  gap: 10px;
+  gap: 15px;
   padding: 10px;
+  padding-left: 20%;
   box-sizing: border-box;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  align-items: center;
 }
 
 .drive-slot {
@@ -520,7 +522,7 @@ body {
 }
 
 .fx-img {
-  width: 100%;
+  width: 80%;
   height: auto;
   cursor: grab;
   transition: transform 0.1s ease, filter 0.1s ease;
@@ -622,11 +624,9 @@ body {
 }
 
 /* ==========================================================================
-   9. KNOBS RACK (FIXED CONTROL SECTION)
+   9. KNOBS RACK (BASE MINIMAL)
    ========================================================================== */
 
-/* Colonna Centrale: Flexbox Verticale */
-/* Assicura che i knob stiano tra i floppy e il BPM */
 .effects {
   display: flex;
   flex-direction: column;
@@ -634,125 +634,86 @@ body {
   overflow: hidden;
 }
 
-/* Rack Manopole: Altezza fissa, sempre visibile */
 .knobs-rack {
-  flex: 0 0 auto; /* Non si riduce mai */
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 5px;
-  background-color: var(--dgrey);
-  border-bottom: 4px solid var(--black);
-  margin-bottom: 5px;
-  gap: 2px;
+  padding: 10px;
+  background-color: var(--lgrey);
+  /* O un colore di sfondo semplice */
   z-index: 10;
 }
 
-/* Contenitore Singola Manopola */
 .knob-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 50px;
   position: relative;
-  width: 45px;
 }
 
 .knob-label {
   font-family: "Pixelify Sans", system-ui;
-  font-size: 9px;
-  color: var(--llgrey);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-size: 10px;
+  color: #ccc;
   text-align: center;
-  margin-bottom: 2px;
-  cursor: default;
-  user-select: none;
+  margin-bottom: 5px;
 }
 
-/* Corpo Manopola: Vintage Hard Plastic Style */
+/* Il corpo rotondo della manopola */
 .knob-body {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--pad-bg) 0%, var(--black) 100%);
-  border: 1px solid var(--black);
-  /* Ombra netta per effetto pixel art */
-  box-shadow: 2px 2px 0px var(--black);
+  background-color: #444;
+  /* Grigio scuro semplice */
+  border: 2px solid #000;
   position: relative;
   cursor: ns-resize;
-  transition: box-shadow 0.1s, transform 0.1s;
+  /* Cursore per indicare il drag verticale */
 }
 
-.knob-body:active {
-  box-shadow: 1px 1px 0px var(--black);
-  transform: translate(1px, 1px);
-}
-
-/* Indicatore Rotante Sottile */
+/* La lancetta che ruota */
 .knob-indicator {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 3px;
-  height: 40%;
-  background-color: var(--white);
-  border-radius: 1px;
+  width: 4px;
+  /* Spessore lancetta */
+  height: 45%;
+  /* Lunghezza (quasi metà del raggio) */
+  background-color: white;
+  border-radius: 2px;
+
+  /* Logica fondamentale per la rotazione corretta con il tuo JS */
   transform-origin: bottom center;
-  transform: translate(-50%, -100%) rotate(-135deg); 
+  transform: translate(-50%, -100%) rotate(-135deg);
   pointer-events: none;
-  box-shadow: 0 0 2px var(--color-green);
-  transition: transform 0.05s linear;
 }
 
-/* Variante Colore Master Volume */
+/* Colore diverso per il Master Volume (opzionale) */
 #knob-vol .knob-indicator {
-  background-color: var(--color-red);
-  box-shadow: 0 0 2px var(--color-red);
+  background-color: red;
 }
 
+/* Testo del valore numerico sotto */
 .knob-value {
-  font-family: monospace !important;
-  font-size: 9px;
-  color: var(--screen-blue-text);
-  margin-top: 2px;
-  opacity: 0.8;
-  min-height: 12px;
+  font-family: monospace;
+  font-size: 10px;
+  color: #0ff;
+  /* Ciano base */
+  margin-top: 5px;
 }
 
-/* Tasto Freeze (Mini Selector) */
+/* Bottone Freeze semplice */
 .freeze-btn {
-  width: 36px;
-  height: 20px;
-  background-color: var(--color-blu);
-  color: var(--black);
-  border: 1px solid var(--black);
-  border-radius: 4px; /* Unifico il radius a 4px come da primo blocco ma con dimensioni del secondo */
+  width: 30px;
+  height: 25px;
+  background-color: #007acc;
+  color: white;
+  border: 1px solid black;
   font-family: "Pixelify Sans", system-ui;
-  font-size: 8px;
-  font-weight: bold;
+  font-size: 10px;
   cursor: pointer;
-  box-shadow: 1px 1px 0 var(--black);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 12px; /* Allineamento visivo coi knob */
-  transition: transform 0.1s;
-}
-
-.freeze-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: none;
-}
-
-.freeze-btn:disabled {
-  background-color: var(--dgrey);
-  color: var(--llgrey);
-  cursor: default;
-  box-shadow: none;
-}
-
-/* BPM Section: Non schiacciare */
-.bpm-led-wrapper {
-  flex: 0 0 auto;
-  margin-top: 0;
-}
+  display
