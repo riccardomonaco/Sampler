@@ -7,14 +7,36 @@ import { eqBands, soundBanks } from "../audio/AudioUtils";
 function createCommandsButtons() {
   const container = document.createElement("div");
   container.className = "command-buttons";
-  
-  [{id:"play-button", t:"▶︎"}, {id:"pause-button", t:"||"}, {id:"stop-button", t:"◼"}].forEach(btn => {
+
+  const buttons = [
+    { id: "play-button", icon: "pixelart-icons-font-play" },
+    { id: "pause-button", icon: "pixelart-icons-font-pause" },
+    // STOP: Usiamo un placeholder speciale per identificarlo
+    { id: "stop-button", isStop: true }
+  ];
+
+  buttons.forEach(btn => {
     const div = document.createElement("div");
     div.className = "old-button";
     div.id = btn.id;
-    div.textContent = btn.t;
+
+    if (btn.isStop) {
+      // --- NUOVO SVG STOP ---
+      // Disegniamo un quadrato di 12x12 pixel centrato in una vista 24x24.
+      // Questo lascia lo "spazio vuoto" attorno, rendendolo grande uguale agli altri visivamente.
+      div.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="6" width="15" height="15" />
+      </svg>
+    `;
+    } else {
+      // Icone standard (Play/Pause)
+      div.innerHTML = `<i class="${btn.icon}"></i>`;
+    }
+
     container.appendChild(div);
   });
+
   return container;
 }
 
@@ -55,7 +77,7 @@ function createKnob(id, label) {
  */
 function createFloppyDeck() {
   const wrapper = document.createElement("div");
-  wrapper.className = "fx-buttons-wrapper"; 
+  wrapper.className = "fx-buttons-wrapper";
 
   const container = document.createElement("div");
   container.className = "fx-buttons"; // Classe originale dell'HTML
@@ -77,8 +99,8 @@ function createFloppyDeck() {
 
     // Evento Drag Nativo
     img.addEventListener("dragstart", (e) => {
-       e.dataTransfer.setData("effectType", fx.id);
-       e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.setData("effectType", fx.id);
+      e.dataTransfer.effectAllowed = "copy";
     });
 
     container.appendChild(img);
@@ -89,15 +111,15 @@ function createFloppyDeck() {
 }
 
 function createBpmSection() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "bpm-led-wrapper";
-    
-    const led = document.createElement("div");
-    led.id = "bpm-led";
-    led.className = "bpm-led";
-    led.innerText = "tap BPM"; // Lowercase 'tap' come nel tuo HTML
-    wrapper.appendChild(led);
-    return wrapper;
+  const wrapper = document.createElement("div");
+  wrapper.className = "bpm-led-wrapper";
+
+  const led = document.createElement("div");
+  led.id = "bpm-led";
+  led.className = "bpm-led";
+  led.innerText = "tap BPM"; // Lowercase 'tap' come nel tuo HTML
+  wrapper.appendChild(led);
+  return wrapper;
 }
 
 // ===========================================================================
@@ -111,7 +133,7 @@ function createSampler() {
   const sampler = document.createElement("div");
   sampler.className = "sampler border-shadow";
   sampler.id = "sample-drop";
-  
+
   // Waveform Container
   const waveform = document.createElement("div");
   waveform.id = "waveform";
@@ -120,7 +142,7 @@ function createSampler() {
   plus.id = "plus-wrapper";
   plus.innerText = "DROP A SAMPLE...";
   waveform.appendChild(plus);
-  
+
   // EQ Grid
   const eqGrid = document.createElement("div");
   eqGrid.className = "eq-grid";
@@ -131,28 +153,86 @@ function createSampler() {
   // Commands
   const commands = document.createElement("div");
   commands.className = "commands border-shadow";
-  
+
   // Ricostruzione fedele della barra comandi HTML
-  const pbLabel = document.createElement("div"); pbLabel.className="loop-label"; pbLabel.innerText="PLAYBACK";
+  const pbLabel = document.createElement("div"); pbLabel.className = "loop-label"; pbLabel.innerText = "PLAYBACK";
   const cmdBtns = createCommandsButtons();
-  
-  const loopLabel = document.createElement("div"); loopLabel.className="loop-label"; loopLabel.innerText="LOOP";
-  const loopBtns = document.createElement("div"); loopBtns.className="loop-buttons";
-  [{id:"d2-button",t:"◀"}, {id:"loop-button",t:"↻"}, {id:"x2-button",t:"▶"}].forEach(b=>{
-      const d=document.createElement("div"); d.className="old-button"; d.id=b.id; d.textContent=b.t; loopBtns.appendChild(d);
+
+  const loopLabel = document.createElement("div");
+  loopLabel.className = "loop-label";
+  loopLabel.innerText = "LOOP";
+
+  const loopBtns = document.createElement("div");
+  loopBtns.className = "loop-buttons";
+
+  // Definiamo i bottoni con le nuove classi lunghe
+  const loopControls = [
+    { id: "d2-button", icon: "pixelart-icons-font-prev" },   // Indietro / Dimezza
+    { id: "loop-button", icon: "pixelart-icons-font-reload" }, // Loop / Ricarica
+    { id: "x2-button", icon: "pixelart-icons-font-next" }    // Avanti / Raddoppia
+  ];
+
+  loopControls.forEach(b => {
+    const d = document.createElement("div");
+    d.className = "old-button";
+    d.id = b.id;
+    // Inseriamo l'icona
+    d.innerHTML = `<i class="${b.icon}"></i>`;
+    loopBtns.appendChild(d);
   });
+  // --- SEZIONE UTILS ---
+  const utilsLabel = document.createElement("div");
+  utilsLabel.className = "loop-label";
+  utilsLabel.innerText = "UTILS";
 
-  const recLabel = document.createElement("div"); recLabel.className="loop-label"; recLabel.innerText="REC";
-  const recBtns = document.createElement("div"); recBtns.className="rec-buttons";
-  const recDot = document.createElement("div"); recDot.className="old-button"; recDot.id="rec-button"; recDot.textContent="⦿";
-  recBtns.appendChild(recDot);
-  
-  const trimBtns = document.createElement("div"); trimBtns.className="rec-buttons";
-  const trimIcon = document.createElement("div"); trimIcon.className="old-button"; trimIcon.id="trim-btn"; trimIcon.textContent="✂";
-  trimBtns.appendChild(trimIcon);
+  const utilsBtns = document.createElement("div");
+  utilsBtns.className = "rec-buttons";
 
-  commands.append(pbLabel, cmdBtns, loopLabel, loopBtns, recLabel, recBtns, trimBtns);
-  
+  // 1. SNAP (Calamita)
+  const snapBtn = document.createElement("div");
+  snapBtn.className = "old-button";
+  snapBtn.id = "snap-btn";
+  snapBtn.title = "Snap to Grid";
+
+  // Inseriamo l'SVG direttamente. fill="currentColor" è il segreto per farla colorare col CSS.
+  snapBtn.innerHTML = `
+<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+      <rect x="5" y="4" width="4" height="4" />
+      <rect x="5" y="10" width="4" height="5" />
+
+      <rect x="15" y="4" width="4" height="4" />
+      <rect x="15" y="10" width="4" height="5" />
+      
+      <rect x="5" y="15" width="5" height="2" />
+      <rect x="14" y="15" width="5" height="2" />
+      
+      <rect x="7" y="17" width="10" height="2" />
+      
+      <rect x="9" y="19" width="6" height="1" />
+    </svg>
+  `;
+
+  // 2. CUT (Forbici)
+  const cutBtn = document.createElement("div");
+  cutBtn.className = "old-button";
+  cutBtn.id = "trim-btn";
+  cutBtn.title = "Trim Audio";
+  // Usa px-scissors (o px-cut se preferisci un'altra icona)
+  cutBtn.innerHTML = '<i class="pixelart-icons-font-cut"></i>';
+
+  // 3. EXPORT (Download)
+  const exportBtn = document.createElement("div");
+  exportBtn.className = "old-button";
+  exportBtn.id = "export-btn";
+  exportBtn.title = "Export to WAV";
+  // Usa px-download
+  exportBtn.innerHTML = '<i class="pixelart-icons-font-download"></i>';
+
+  utilsBtns.append(snapBtn, cutBtn, exportBtn);
+
+  // Aggiungiamo tutto al container comandi
+  // Nota: Rimuovi le vecchie variabili recLabel, recBtns, trimBtns se presenti
+  commands.append(pbLabel, cmdBtns, loopLabel, loopBtns, utilsLabel, utilsBtns);
   wrapper.append(sampler, commands);
   return wrapper;
 }
@@ -160,7 +240,7 @@ function createSampler() {
 function createEffects() {
   const wrapper = document.createElement("div");
   wrapper.className = "effects border-shadow";
-  
+
   // LABEL
   const label = document.createElement("div");
   label.className = "fx-label";
@@ -169,20 +249,20 @@ function createEffects() {
   // 1. FLOPPY IMAGES (Middle - Flex Grow)
   const floppyDeck = createFloppyDeck();
 
-  // 2. KNOBS RACK (Static - Hardcoded here)
+  // 2. KNOBS RACK
   const knobsRack = document.createElement("div");
-  knobsRack.className = "knobs-rack";
-  
+  knobsRack.className = "knobs-rack hidden"; // <--- AGGIUNGI 'hidden' QUI
+  knobsRack.id = "knobs-rack"; // Diamo un ID per trovarlo facilmente dal JS
+
   knobsRack.appendChild(createKnob("p1", "PARAM 1"));
-  
-  const freezeBtn = document.createElement("div");
-  freezeBtn.className = "freeze-btn";
-  freezeBtn.id = "freeze-btn";
-  freezeBtn.innerText = "FREEZE";
-  knobsRack.appendChild(freezeBtn);
-  
   knobsRack.appendChild(createKnob("p2", "PARAM 2"));
-  knobsRack.appendChild(createKnob("vol", "MASTER"));
+  knobsRack.appendChild(createKnob("vol", "FX LEVEL"));
+
+  /*   const freezeBtn = document.createElement("div");
+    freezeBtn.className = "old-button";
+    freezeBtn.id = "freeze-btn";
+    freezeBtn.innerText = "Apply";
+    knobsRack.appendChild(freezeBtn); */
 
   // 3. BPM (Bottom)
   const bpmSection = createBpmSection();
@@ -300,10 +380,11 @@ export function initBankMenu() {
 
   bankSelect.innerHTML = "";
   const defaultOption = document.createElement("option");
-  defaultOption.value = ""; 
+  defaultOption.value = "";
   defaultOption.textContent = "-- SELECT SOUND BANK --";
-  defaultOption.disabled = true; 
+  defaultOption.disabled = true;
   defaultOption.selected = true;
+  defaultOption.hidden = true;
   bankSelect.appendChild(defaultOption);
 
   Object.keys(soundBanks).forEach((bankName) => {
@@ -327,7 +408,7 @@ export function createPageDefault() {
   wrapper.appendChild(createBanksWrapper()); // Struttura HTML corretta per le banche
 
   const root = document.getElementById("root") || document.body;
-  root.innerHTML = ""; 
+  root.innerHTML = "";
   root.appendChild(wrapper);
 
   initBankMenu();

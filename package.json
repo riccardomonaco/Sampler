@@ -4,6 +4,7 @@
     "bpm-detective": "^2.0.5",
     "firebase": "^12.6.0",
     "music-tempo": "^1.0.3",
+    "pixelarticons": "^1.8.1",
     "wavesurfer.js": "^7.11.1"
   },
   "devDependencies": {

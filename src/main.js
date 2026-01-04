@@ -8,6 +8,7 @@ import { createPageDefault } from "./ui/Ui.js";
 import AudioPlayer from "./audio/AudioPlayer.js";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "./firebase.js";
+import "../node_modules/pixelarticons/fonts/pixelart-icons-font.css"
 
 // Global AudioPlayer instance
 let audioPlayer;

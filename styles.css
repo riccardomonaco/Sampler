@@ -72,6 +72,7 @@
    2. GLOBAL STYLES & SCROLLBARS
    ========================================================================== */
 
+
 body {
   background: var(--bg-body);
   background: linear-gradient(90deg, var(--bg-grad-start) 0%, var(--bg-grad-end) 100%);
@@ -80,6 +81,9 @@ body {
   -moz-user-select: none;
   -ms-user-select: none;
   margin: 0;
+
+  width: 100vw;
+  overflow-x: hidden;
 }
 
 /* Custom Scrollbar (Chrome/Edge/Safari) */
@@ -140,12 +144,24 @@ body {
 
 /* --- Center Column: Effects Rack --- */
 .effects {
-  display: inline;
-  padding: 10px;
-  background-color: var(--lgrey);
-  width: fit-content;
-  height: 545px;
+/* Layout Flex (dalla vecchia sezione 9) */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  /* Dimensioni e Posizione */
+  width: 100%;       
+  height: 575px;     
   position: relative;
+  
+  /* Stile (dalla vecchia sezione 3) */
+  background-color: var(--lgrey);
+  padding: 10px;
+  box-sizing: border-box;
+
+  /* --- IL FIX MAGICO --- */
+  overflow: visible !important; /* Forza il contenuto a uscire dai bordi */
+  z-index: 50; 
 }
 
 /* --- Right Column: Banks --- */
@@ -168,11 +184,34 @@ body {
   font-weight: 400;
   text-align: center;
   background-color: var(--dgrey);
-  padding: 5px 20px;
+  padding: 5px 15px;
   box-shadow: 5px 5px var(--black);
   transition: transform 100ms ease-in, box-shadow 100ms ease-in, outline-offset 100ms ease-in;
   color: var(--white);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.old-button i, 
+.old-button svg, 
+.old-button span.icon-solid-square {
+  /* DIMENSIONI: Qui controlli la grandezza di TUTTO in un colpo solo */
+  font-size: 1.2rem !important; 
+  width: 1.2rem !important;     
+  height: 1.2rem !important;
+  
+  /* ALLINEAMENTO */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
+  
+  /* PRENDI COLORE DAL TESTO (Fondamentale per hover e stati attivi) */
+  color: inherit;
+  fill: currentColor; 
 }
 
 .old-button:focus-visible {
@@ -190,7 +229,7 @@ body {
   font-family: "Pixelify Sans", system-ui;
   font-weight: 400;
   text-align: center;
-  padding: 5px 20px;
+  padding: 5px 15px;
   box-shadow: 5px 5px var(--black);
   transition: 100ms ease-in;
   background-color: var(--screen-blue-bg);
@@ -435,17 +474,29 @@ body {
    ========================================================================== */
 
 .fx-buttons-wrapper {
-  background-color: var(--lgrey);
+  background-color: var(--dgrey);
   width: 100%;
-  height: 50%;
+  flex: 1;
   padding-top: 10px;
   padding-bottom: 10px;
+  box-sizing: border-box;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .fx-buttons {
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+
   display: grid;
   grid-template-columns: 1fr;
   grid-auto-rows: min-content;
+  gap: 15px;
+  padding: 10px;
+  padding-left: 20%;
+  align-items: center;
   gap: 15px;
   padding: 10px;
   padding-left: 20%;
@@ -636,13 +687,20 @@ body {
 
 .knobs-rack {
   flex: 0 0 auto;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px;
-  background-color: var(--lgrey);
-  /* O un colore di sfondo semplice */
+  background-color: var(--dgrey);
   z-index: 10;
+
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  /* Un po' di aria sopra */
+  border-top: 2px solid var(--black);
+  /* Opzionale: divisore estetico */
 }
 
 .knob-wrapper {
@@ -679,12 +737,12 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 4px;
+  width: 2px;
   /* Spessore lancetta */
-  height: 45%;
+  height: 40%;
   /* Lunghezza (quasi metà del raggio) */
   background-color: white;
-  border-radius: 2px;
+  border-radius: 0px;
 
   /* Logica fondamentale per la rotazione corretta con il tuo JS */
   transform-origin: bottom center;
@@ -694,26 +752,151 @@ body {
 
 /* Colore diverso per il Master Volume (opzionale) */
 #knob-vol .knob-indicator {
-  background-color: red;
+  background-color: white;
 }
 
 /* Testo del valore numerico sotto */
 .knob-value {
   font-family: monospace;
   font-size: 10px;
-  color: #0ff;
+  color: var(--llgrey);
   /* Ciano base */
   margin-top: 5px;
 }
 
-/* Bottone Freeze semplice */
-.freeze-btn {
-  width: 30px;
-  height: 25px;
-  background-color: #007acc;
-  color: white;
-  border: 1px solid black;
-  font-family: "Pixelify Sans", system-ui;
+/* Fix per layout BPM */
+.bpm-led-wrapper {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* ==========================================================================
+   11. REGION APPLY BUTTON (Stile Definitivo)
+   ========================================================================== */
+
+.region-apply-btn {
+  /* Posizionamento assoluto rispetto alla regione */
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  /* Altissimo per stare sopra a tutto */
+
+  /* Colori e Stile (Pixel Art) */
+  background-color: #00ff00;
+  /* Verde Neon puro (fallback) */
+  background-color: var(--color-green, #00ff00);
+  /* Usa la tua var se c'è */
+  color: #000000;
+  border: 2px solid #000000;
+
+  /* Testo */
+  font-family: "Pixelify Sans", monospace, sans-serif;
   font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+
+  /* Dimensioni e Spaziatura */
+  padding: 3px 10px;
+  white-space: nowrap;
+
+  /* Interazione */
   cursor: pointer;
-  display
+  pointer-events: auto;
+  /* Assicura che sia cliccabile */
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
+  transition: all 0.1s ease;
+}
+
+.region-apply-btn:hover {
+  transform: translateX(-50%) scale(1.1);
+  background-color: #66ff66;
+  /* Verde più chiaro */
+  box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.6);
+}
+
+.region-apply-btn:active {
+  transform: translateX(-50%) translateY(2px);
+  box-shadow: 0px 0px 0px rgba(0, 0, 0, 0.5);
+}
+
+/* IMPORTANTE: Assicura che i Knob spariscano davvero */
+.hidden {
+  display: none !important;
+}
+
+/* --- ICONE CUSTOM (Stop & Magnet fix) --- */
+
+/* Disegna un quadrato pieno perfetto */
+.icon-solid-square {
+  display: inline-block;
+  width: 5px;  /* Dimensione simile al "corpo" delle icone pixel */
+  height: 5px;
+  background-color: currentColor; /* Prende il colore del testo (bianco/grigio/verde) */
+  vertical-align: middle;
+  /* Nessun border-radius per mantenerlo spigoloso */
+}
+
+/* Fix per allinearlo con le altre icone */
+.old-button .icon-solid-square {
+  margin-bottom: 1px; /* Aggiustamento ottico fine */
+}
+
+/* ==========================================================================
+   FIX INPUT BPM (Rimuove le frecce/spin buttons)
+   ========================================================================== */
+
+/* Per Chrome, Safari, Edge, Opera */
+.BPM_input::-webkit-outer-spin-button,
+.BPM_input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Per Firefox */
+.BPM_input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.bpm-led {
+  position: relative;
+}
+
+.bpm-led::after {
+  content: "Right Click to manually insert BPM!";
+  
+  position: absolute;
+  bottom: 140%;
+  left: 50%;
+  transform: translateX(-50%);
+  
+  background-color: var(--black);
+  color: var(--llgrey);
+  border: 1px solid var(--white);
+  font-family: "Pixelify Sans", system-ui;
+  font-size: 20px;
+  white-space: nowrap;
+  padding: 2px 4px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+  
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  transition-delay: 0s;
+}
+
+/* Appare dopo un po' di attesa */
+.bpm-led:hover::after {
+  opacity: 0.8;
+  transition-delay: 1.5s; 
+}
+
+/* Nascondi mentre si scrive */
+.bpm-led:has(input)::after {
+  display: none;
+}
