@@ -144,24 +144,25 @@ body {
 
 /* --- Center Column: Effects Rack --- */
 .effects {
-/* Layout Flex (dalla vecchia sezione 9) */
+  /* Layout Flex (dalla vecchia sezione 9) */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 
   /* Dimensioni e Posizione */
-  width: 100%;       
-  height: 575px;     
+  width: 100%;
+  height: 575px;
   position: relative;
-  
+
   /* Stile (dalla vecchia sezione 3) */
   background-color: var(--lgrey);
   padding: 10px;
   box-sizing: border-box;
 
   /* --- IL FIX MAGICO --- */
-  overflow: visible !important; /* Forza il contenuto a uscire dai bordi */
-  z-index: 50; 
+  overflow: visible !important;
+  /* Forza il contenuto a uscire dai bordi */
+  z-index: 50;
 }
 
 /* --- Right Column: Banks --- */
@@ -194,24 +195,24 @@ body {
   justify-content: center;
 }
 
-.old-button i, 
-.old-button svg, 
+.old-button i,
+.old-button svg,
 .old-button span.icon-solid-square {
   /* DIMENSIONI: Qui controlli la grandezza di TUTTO in un colpo solo */
-  font-size: 1.2rem !important; 
-  width: 1.2rem !important;     
+  font-size: 1.2rem !important;
+  width: 1.2rem !important;
   height: 1.2rem !important;
-  
+
   /* ALLINEAMENTO */
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
   vertical-align: middle;
-  
+
   /* PRENDI COLORE DAL TESTO (Fondamentale per hover e stati attivi) */
   color: inherit;
-  fill: currentColor; 
+  fill: currentColor;
 }
 
 .old-button:focus-visible {
@@ -833,16 +834,19 @@ body {
 /* Disegna un quadrato pieno perfetto */
 .icon-solid-square {
   display: inline-block;
-  width: 5px;  /* Dimensione simile al "corpo" delle icone pixel */
+  width: 5px;
+  /* Dimensione simile al "corpo" delle icone pixel */
   height: 5px;
-  background-color: currentColor; /* Prende il colore del testo (bianco/grigio/verde) */
+  background-color: currentColor;
+  /* Prende il colore del testo (bianco/grigio/verde) */
   vertical-align: middle;
   /* Nessun border-radius per mantenerlo spigoloso */
 }
 
 /* Fix per allinearlo con le altre icone */
 .old-button .icon-solid-square {
-  margin-bottom: 1px; /* Aggiustamento ottico fine */
+  margin-bottom: 1px;
+  /* Aggiustamento ottico fine */
 }
 
 /* ==========================================================================
@@ -868,12 +872,12 @@ body {
 
 .bpm-led::after {
   content: "Right Click to manually insert BPM!";
-  
+
   position: absolute;
   bottom: 140%;
   left: 50%;
   transform: translateX(-50%);
-  
+
   background-color: var(--black);
   color: var(--llgrey);
   border: 1px solid var(--white);
@@ -883,8 +887,8 @@ body {
   padding: 2px 4px;
   pointer-events: none;
   z-index: 9999;
-  box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
-  
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
   transition-delay: 0s;
@@ -893,10 +897,242 @@ body {
 /* Appare dopo un po' di attesa */
 .bpm-led:hover::after {
   opacity: 0.8;
-  transition-delay: 1.5s; 
+  transition-delay: 1.5s;
 }
 
 /* Nascondi mentre si scrive */
 .bpm-led:has(input)::after {
   display: none;
+}
+
+/* ==========================================================================
+   10. ADD SAMPLE BUTTON (New Bank Feature)
+   ========================================================================== */
+
+.add-sample-pad {
+  background-color: transparent;
+  color: var(--slot-border);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  box-shadow: 5px 5px 0px var(--black);
+}
+
+.add-sample-pad span {
+  font-size: 2.5rem;
+  font-weight: bold;
+  pointer-events: none;
+  line-height: 0;
+  padding-bottom: 4px;
+}
+
+.add-sample-pad:hover {
+  transform: translate(-1px, -1px);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  color: var(--slot-border);
+  background-color: transparent;
+}
+
+/* Stato di caricamento */
+.add-sample-pad.loading {
+  cursor: wait;
+  border-color: var(--color-green);
+  color: var(--color-green);
+  animation: pulse-border 1.5s infinite;
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: var(--dgrey);
+    opacity: 0.5;
+  }
+
+  50% {
+    border-color: var(--color-green);
+    opacity: 1;
+  }
+
+  100% {
+    border-color: var(--dgrey);
+    opacity: 0.5;
+  }
+}
+
+.pad-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 25px;
+  height: 25px;
+
+  color: var(--white);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  /* Il pad ignora il bottone finché non è hover */
+  transition: opacity 0.1s ease;
+  z-index: 100;
+}
+
+/* Stile specifico per l'icona PixelArt interna */
+.pad-delete-btn i {
+  pointer-events: none;
+  /* FONDAMENTALE: il click deve colpire il div, non l'icona */
+  font-size: 20px;
+  /* Le pixelart icons rendono meglio un po' più grandi */
+  line-height: 1;
+}
+
+/* Quando passi sopra il PAD, mostra il bottone */
+.sample-pad:hover .pad-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+  /* Ora il bottone diventa cliccabile */
+}
+
+/* Click sul bottone */
+.pad-delete-btn:active {
+  transform: translateY(1px);
+  /* Si muove solo il bottoncino, non il pad */
+  color: var(--color-red);
+}
+
+/* ==========================================================================
+   11. CUSTOM MODAL SYSTEM (Replacement for alert/prompt/confirm)
+   ========================================================================== */
+
+/* Lo sfondo scuro che copre tutto */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  /* Scurisce lo sfondo */
+  backdrop-filter: blur(2px);
+  /* Effetto sfocato moderno */
+  z-index: 10000;
+  /* Sopra a tutto, anche ai menu */
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* La scatola del messaggio */
+.modal-box {
+  background-color: var(--dgrey);
+  border: 4px solid var(--lgrey);
+  box-shadow: 10px 10px 0px var(--black);
+  padding: 2px;
+  /* Simula bordo doppio */
+  min-width: 300px;
+  max-width: 400px;
+  transform: scale(0.9);
+  transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.modal-overlay.active .modal-box {
+  transform: scale(1);
+}
+
+/* Header della finestra */
+.modal-header {
+  background-color: var(--lgrey);
+  color: var(--dgrey);
+  font-family: "Pixelify Sans", system-ui;
+  font-weight: bold;
+  padding: 5px 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 15px;
+}
+
+.modal-body {
+  padding: 10px 20px;
+  color: var(--white);
+  font-family: "Pixelify Sans", system-ui;
+  font-size: 1.1rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.modal-input {
+  display: block;
+  font-family: "Pixelify Sans", system-ui;
+  width: 70%;
+  margin: 15px auto;
+  background-color: var(--black);
+  color: var(--color-green);
+  /* Stile terminale */
+  border: 2px solid var(--lgrey);
+  padding: 10px;
+  font-size: 1.2rem;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: var(--color-green);
+}
+
+/* Footer con i bottoni */
+.modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+}
+
+.modal-btn {
+  font-family: "Pixelify Sans", system-ui;
+  font-size: 1rem;
+  padding: 8px 20px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  text-transform: uppercase;
+}
+
+.btn-confirm {
+  background-color: transparent;
+  color: var(--color-green);
+  border: 2px solid var(--color-green);
+}
+
+.btn-confirm:hover {
+  background-color: var(--color-green);
+  color: var(--black);
+}
+
+.btn-confirm:active {
+  transform: translate(0, 0);
+  box-shadow: 0 0 0;
+}
+
+.btn-cancel {
+  background-color: transparent;
+  color: var(--white);
+  border: 2px solid var(--lgrey);
+}
+
+.btn-cancel:hover {
+  background-color: var(--lgrey);
+  color: var(--black);
 }

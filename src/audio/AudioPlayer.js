@@ -8,6 +8,7 @@ import {
   sliceBuffer,
   makeDistortionCurve
 } from "./AudioUtils.js";
+import { Modal } from "../ui/Modal.js";
 
 /**
  * Main AudioPlayer class.
@@ -1256,6 +1257,19 @@ export default class AudioPlayer {
       });
     }
 
+    const saveBankBtn = document.getElementById('save-bank-btn');
+    if (saveBankBtn) {
+      saveBankBtn.addEventListener('click', () => {
+        this.saveToCurrentBank();
+
+        const originalColor = saveBankBtn.style.color;
+        saveBankBtn.style.color = "var(--color-green)";
+        setTimeout(() => {
+          saveBankBtn.style.color = "";
+        }, 300);
+      });
+    }
+
     this.setupGlobalDragDrop();
     this.setupBpmInput();
   }
@@ -1335,43 +1349,37 @@ export default class AudioPlayer {
   }
 
   /**
-     * Export the current buffer applying EQ and Master Volume (WYSIWYG).
-     */
-  async exportAudio() {
-    if (!this.originalBuffer) return;
+   * Helper: Genera il Blob WAV applicando EQ e Master Volume correnti.
+   * Restituisce il Blob pronto per essere scaricato o caricato.
+   */
+  async getProcessedWavBlob() {
+    if (!this.originalBuffer) return null;
 
-    // 1. SETUP DEL CONTESTO OFFLINE
-    // Creiamo un "mixer virtuale" lungo esattamente quanto il tuo sample
+    // 1. Setup Offline Context (Mixer Virtuale)
     const offlineCtx = new OfflineAudioContext(
       this.originalBuffer.numberOfChannels,
       this.originalBuffer.length,
       this.originalBuffer.sampleRate
     );
 
-    // 2. SORGENTE AUDIO
+    // 2. Sorgente
     const source = offlineCtx.createBufferSource();
     source.buffer = this.originalBuffer;
 
-    // 3. RICOSTRUZIONE DELLA CATENA EQ
-    // Dobbiamo ricreare i filtri identici a quelli "vivi", leggendo i valori attuali
+    // 3. Ricostruzione Catena EQ + Volume
     let currentNode = source;
-
-    // Leggiamo i guadagni attuali dai filtri attivi
     const currentGains = this.filters.map(f => f.gain.value);
 
     eqBands.forEach((band, i) => {
       const filter = offlineCtx.createBiquadFilter();
-      // Stessa logica di initEqualizer per il tipo di filtro
       filter.type = band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
       filter.frequency.value = band;
-      filter.gain.value = currentGains[i]; // Applichiamo il valore dello slider
-
+      filter.gain.value = currentGains[i];
       currentNode.connect(filter);
-      currentNode = filter; // Passiamo al prossimo anello della catena
+      currentNode = filter;
     });
 
-    // 4. MASTER VOLUME (Opzionale ma consigliato)
-    // Se vuoi che l'export rispetti anche la manopola "FX LEVEL" (Volume Master)
+    // 4. Master Volume
     if (this.masterGainNode) {
       const masterGain = offlineCtx.createGain();
       masterGain.gain.value = this.masterGainNode.gain.value;
@@ -1379,26 +1387,82 @@ export default class AudioPlayer {
       currentNode = masterGain;
     }
 
-    // 5. CONNESSIONE ALL'USCITA E RENDERING
+    // 5. Render
     currentNode.connect(offlineCtx.destination);
     source.start(0);
-
-    // Qui avviene la magia: renderizza tutto in un nuovo buffer
     const renderedBuffer = await offlineCtx.startRendering();
 
-    // 6. CONVERSIONE E DOWNLOAD (WAV)
-    const blob = bufferToWave(renderedBuffer, renderedBuffer.length);
-    const url = URL.createObjectURL(blob);
+    // 6. Conversione in WAV Blob
+    return bufferToWave(renderedBuffer, renderedBuffer.length);
+  }
 
+  /**
+     * Export the current buffer applying EQ and Master Volume (WYSIWYG).
+     */
+  async exportAudio() {
+    const blob = await this.getProcessedWavBlob();
+    if (!blob) return;
+
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.style.display = "none";
     a.href = url;
-    a.download = "sampler_mastered.wav"; // Nome file più figo
+    a.download = "sampler_export.wav";
     document.body.appendChild(a);
     a.click();
-
-    // Pulizia
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+  }
+
+  async saveToCurrentBank() {
+    // 1. Controlli preliminari
+    const bankSelect = document.getElementById("banks");
+    const currentBank = bankSelect ? bankSelect.value : null;
+
+    if (!this.originalBuffer) {
+      await Modal.show('alert', "Nessun sample caricato!");
+      return;
+    }
+    if (!currentBank || currentBank === "" || currentBank === "__NEW_BANK__") {
+      await Modal.show('alert', "Seleziona una soundbank valida!");
+      return;
+    }
+
+    // 2. UI Feedback (Loading sul bottone)
+    const btn = document.getElementById("save-bank-btn");
+    const originalIcon = btn.innerHTML;
+    btn.innerHTML = `<i class="pixelart-icons-font-clock"></i>`; // Spinner/Orologio
+    btn.style.pointerEvents = "none";
+
+    try {
+      // 3. Genera il file processato (EQ + Effetti applicati)
+      const wavBlob = await this.getProcessedWavBlob();
+
+      // 4. Chiedi il nome
+      // Ottieni il nome attuale dal file caricato o usa un default
+      let defaultName = "Rename your sample";
+      // Prova a recuperare il nome dal titolo della traccia se esiste, altrimenti "Resample"
+
+      let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
+      if (!sampleName) throw new Error("Salvataggio annullato");
+
+      // 5. Carica su Firebase (riutilizziamo la tua funzione!)
+      // Nota: wavBlob è un Blob, che Firebase accetta come un File
+      await addSampleToBank(currentBank, sampleName, wavBlob);
+
+      // 6. Aggiorna la UI della banca
+      createBank(currentBank);
+      alert("Sample salvato nella bank!");
+
+    } catch (error) {
+      if (error.message !== "Salvataggio annullato") {
+        console.error(error);
+        alert("Errore durante il salvataggio.");
+      }
+    } finally {
+      // 7. Ripristina bottone
+      btn.innerHTML = originalIcon;
+      btn.style.pointerEvents = "auto";
+    }
   }
 }
