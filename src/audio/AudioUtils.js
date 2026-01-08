@@ -1,28 +1,27 @@
-/**
- * AudioUtils.js
- * Utility functions for AudioBuffer manipulation, WAV conversion,
- * and mathematical audio effect processing (Offline/Online helpers).
- */
-
-import { db, storage, auth } from "../../src/firebase"; //
+import { db, storage, auth } from "../../src/firebase"; 
 import { doc, setDoc, getDoc, updateDoc, arrayUnion, collection, getDocs, arrayRemove } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
-// 1. soundBanks diventa un contenitore che riempiremo all'avvio
+// ===========================================================================
+// 1. CONSTANTS & STATE
+// ===========================================================================
+
+/** @type {Object.<string, Array>} Local cache of sound banks */
 export let soundBanks = {};
 
+/** @type {number[]} Standard EQ Frequencies */
 export const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
 // ===========================================================================
-// WAV CONVERSION
+// 2. WAV & BUFFER UTILITIES
 // ===========================================================================
 
 /**
  * Converts an AudioBuffer to a WAV formatted Blob.
- * Handles PCM 16-bit encoding and header construction.
- * * @param {AudioBuffer} abuffer - The source audio buffer.
- * @param {number} [len] - Optional length to override buffer length.
- * @returns {Blob} The generated WAV file as a Blob.
+ * Essential for exporting the final master or saving samples.
+ * @param {AudioBuffer} abuffer - The source audio buffer.
+ * @param {number} [len] - Optional override for length.
+ * @returns {Blob} The WAV file.
  */
 export function bufferToWave(abuffer, len) {
   const numOfChan = abuffer.numberOfChannels;
@@ -37,6 +36,7 @@ export function bufferToWave(abuffer, len) {
     }
   }
 
+  // Write WAV Header
   writeString(view, 0, 'RIFF');
   view.setUint32(4, 36 + lengthInBytes, true);
   writeString(view, 8, 'WAVE');
@@ -51,6 +51,7 @@ export function bufferToWave(abuffer, len) {
   writeString(view, 36, 'data');
   view.setUint32(40, lengthInBytes, true);
 
+  // Write PCM Data
   const dataView = new Int16Array(buffer, 44, length * numOfChan);
   const channels = [];
   for (let i = 0; i < numOfChan; i++) channels.push(abuffer.getChannelData(i));
@@ -59,9 +60,9 @@ export function bufferToWave(abuffer, len) {
   for (let i = 0; i < length; i++) {
     for (let ch = 0; ch < numOfChan; ch++) {
       let sample = channels[ch][i];
-      // Clamp values
+      // Soft clipping to avoid ugly digital distortion
       sample = Math.max(-1, Math.min(1, sample));
-      // Convert float to 16-bit PCM
+      // 16-bit conversion
       dataView[offset++] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
     }
   }
@@ -69,14 +70,38 @@ export function bufferToWave(abuffer, len) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
+/**
+ * Slices an AudioBuffer without affecting the original.
+ * @param {AudioBuffer} buffer 
+ * @param {number} startRatio 0.0 to 1.0
+ * @param {number} endRatio 0.0 to 1.0
+ * @param {AudioContext} context 
+ * @returns {AudioBuffer|null}
+ */
+export function sliceBuffer(buffer, startRatio, endRatio, context) {
+  const startFrame = Math.floor(startRatio * buffer.length);
+  const endFrame = Math.floor(endRatio * buffer.length);
+  const frameCount = endFrame - startFrame;
+
+  if (frameCount <= 0) return null;
+
+  const newBuffer = context.createBuffer(buffer.numberOfChannels, frameCount, buffer.sampleRate);
+
+  for (let i = 0; i < buffer.numberOfChannels; i++) {
+    newBuffer.copyToChannel(buffer.getChannelData(i).slice(startFrame, endFrame), i);
+  }
+
+  return newBuffer;
+}
+
 // ===========================================================================
-// MATH UTILS & HELPERS
+// 3. DSP & MATH HELPERS
 // ===========================================================================
 
 /**
- * Creates a distortion curve for the WaveShaperNode.
- * * @param {number} amount - The intensity of distortion (0 to 400+).
- * @returns {Float32Array} The computed curve array.
+ * Generates a sigmoid distortion curve.
+ * @param {number} amount - Intensity of distortion.
+ * @returns {Float32Array}
  */
 export function makeDistortionCurve(amount) {
   const k = typeof amount === 'number' ? amount : 50;
@@ -91,20 +116,18 @@ export function makeDistortionCurve(amount) {
 }
 
 /**
- * Applies mathematical Bitcrushing (Bit Reduction + Downsampling) to an AudioBuffer.
- * This is performed synchronously on the array data.
- * * @param {AudioBuffer} buffer - The buffer to process.
- * @param {number} bits - Bit depth (1 to 16).
- * @param {number} normFreq - Normalized frequency factor (0.0 to 1.0) for downsampling.
- * @returns {AudioBuffer} The modified buffer.
+ * Applies Bit Reduction and Sample Rate Reduction (Downsampling).
+ * Done purely via math loop for offline rendering accuracy.
+ * @param {AudioBuffer} buffer 
+ * @param {number} bits - Target bit depth
+ * @param {number} normFreq - Normalized frequency (1 = full, 0.1 = decimated)
+ * @returns {AudioBuffer}
  */
 function applyMathBitcrush(buffer, bits, normFreq) {
   const channels = buffer.numberOfChannels;
   const len = buffer.length;
   const step = 1 / Math.pow(2, bits);
-  const stepScale = 1 / step; // Optimization pre-calc
-
-  // Downsampling interval (1 = no reduction, 10 = take 1 every 10 samples)
+  const stepScale = 1 / step; 
   const stepSize = Math.floor(1 / normFreq);
 
   for (let c = 0; c < channels; c++) {
@@ -114,28 +137,26 @@ function applyMathBitcrush(buffer, bits, normFreq) {
     for (let i = 0; i < len; i++) {
       if (i % stepSize === 0) {
         let sample = data[i];
-        // Bit Depth Quantization
         sample = Math.round(sample * stepScale) * step;
         lastSample = sample;
       }
-      // Sample & Hold effect
-      data[i] = lastSample;
+      data[i] = lastSample; // Sample & Hold
     }
   }
   return buffer;
 }
 
 // ===========================================================================
-// DIRECT EFFECTS (Synchronous)
+// 4. OFFLINE EFFECTS PROCESSING
 // ===========================================================================
 
 /**
- * Reverses the audio data within a specific time range.
- * * @param {AudioBuffer} buffer - The source buffer.
- * @param {number} startTime - Start time in seconds.
- * @param {number} endTime - End time in seconds.
- * @param {AudioContext} context - Context used to create new buffer.
- * @returns {AudioBuffer} New buffer with reversed range.
+ * Reverses a specific time range within a buffer.
+ * @param {AudioBuffer} buffer 
+ * @param {number} startTime 
+ * @param {number} endTime 
+ * @param {AudioContext} context 
+ * @returns {AudioBuffer} New buffer with reversed section
  */
 export function reverseRange(buffer, startTime, endTime, context) {
   const numChannels = buffer.numberOfChannels;
@@ -156,19 +177,15 @@ export function reverseRange(buffer, startTime, endTime, context) {
   return newBuffer;
 }
 
-// ===========================================================================
-// OFFLINE EFFECTS (Freeze / Async)
-// ===========================================================================
-
 /**
- * Renders complex effects (Delay, Distortion) using an OfflineAudioContext.
- * This effectively "prints" the effect onto the audio selection.
- * * @param {AudioBuffer} originalBuffer - Source buffer.
- * @param {number} regionStart - Selection start time.
- * @param {number} regionEnd - Selection end time.
- * @param {string} effectType - 'distortion' | 'delay' | 'bitcrush'.
- * @param {Object} params - Effect parameters (amount, time, feedback, bits, etc.).
- * @returns {Promise<AudioBuffer>} The final processed buffer.
+ * Renders complex time-based or non-linear effects using OfflineAudioContext.
+ * This "freezes" the effect into the audio data.
+ * @param {AudioBuffer} originalBuffer 
+ * @param {number} regionStart 
+ * @param {number} regionEnd 
+ * @param {string} effectType 
+ * @param {Object} params 
+ * @returns {Promise<AudioBuffer>}
  */
 export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd, effectType, params) {
   const sampleRate = originalBuffer.sampleRate;
@@ -181,22 +198,21 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
 
   if (lengthFrame <= 0) return originalBuffer;
 
-  // 1. Setup Offline Context (Clip Length)
+  // 1. Setup Offline Context
   const clipCtx = new OfflineAudioContext(channels, lengthFrame, sampleRate);
   const clipSource = clipCtx.createBufferSource();
 
-  // 2. Extract specific clip from original buffer
+  // 2. Extract Clip
   const tempBuffer = clipCtx.createBuffer(channels, lengthFrame, sampleRate);
   for (let c = 0; c < channels; c++) {
     tempBuffer.copyToChannel(originalBuffer.getChannelData(c).slice(startFrame, endFrame), c);
   }
   clipSource.buffer = tempBuffer;
 
-  // 3. Create Effect Graph
+  // 3. Build Graph
   let inputNode = clipSource;
   let endNode = clipCtx.destination;
 
-  // --- DISTORTION ---
   if (effectType === 'distortion') {
     const dist = clipCtx.createWaveShaper();
     dist.curve = makeDistortionCurve(params.amount);
@@ -204,7 +220,6 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
     inputNode.connect(dist);
     dist.connect(endNode);
   }
-  // --- DELAY ---
   else if (effectType === 'delay') {
     const delay = clipCtx.createDelay();
     delay.delayTime.value = params.time || 0.3;
@@ -212,20 +227,14 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
     const feedback = clipCtx.createGain();
     feedback.gain.value = params.feedback || 0.5;
 
-    // Routing: 
-    // 1. Dry Signal -> Output
-    // 2. Dry -> Delay -> Output
-    // 3. Delay -> Feedback -> Delay (Loop)
-    inputNode.connect(endNode);
-    inputNode.connect(delay);
+    inputNode.connect(endNode); // Dry
+    inputNode.connect(delay);   // Wet
     delay.connect(feedback);
     feedback.connect(delay);
     delay.connect(endNode);
   }
-  // --- BITCRUSH ---
   else if (effectType === 'bitcrush') {
-    // Pass-through: Bitcrush is handled via post-processing math 
-    // to ensure pixel-perfect sample reduction not easily doable with standard nodes offline.
+    // Bitcrush is handled post-render via math for pixel-perfect results
     inputNode.connect(endNode);
   }
 
@@ -233,44 +242,32 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
   clipSource.start(0);
   let processedClip = await clipCtx.startRendering();
 
-  // 5. Post-Processing (Bitcrush Math)
+  // 5. Post-Process (Bitcrush)
   if (effectType === 'bitcrush') {
     processedClip = applyMathBitcrush(processedClip, params.bits || 8, params.normFreq || 0.5);
   }
 
-  // 6. Merge (Freeze) back into full buffer
+  // 6. Merge Back
   const finalBuffer = new OfflineAudioContext(channels, originalBuffer.length, sampleRate).createBuffer(channels, originalBuffer.length, sampleRate);
 
   for (let c = 0; c < channels; c++) {
     const data = finalBuffer.getChannelData(c);
-    data.set(originalBuffer.getChannelData(c)); // Copy original
-    data.set(processedClip.getChannelData(c), startFrame); // Overwrite selected range
+    data.set(originalBuffer.getChannelData(c)); // Copy Original
+    data.set(processedClip.getChannelData(c), startFrame); // Overwrite Region
   }
 
   return finalBuffer;
 }
 
-// ===========================================================================
-// MAIN EFFECT ROUTER
-// ===========================================================================
-
 /**
- * Routes effect requests to the appropriate handler (Sync or Async).
- * * @param {AudioBuffer} buffer - Source buffer.
- * @param {AudioContext} context - Main audio context.
- * @param {string} type - Effect type key.
- * @param {number} startTime - Region start.
- * @param {number} endTime - Region end.
- * @param {Object} [params={}] - Parameters for the effect.
- * @returns {Promise<AudioBuffer>|AudioBuffer} The processed result.
+ * Main Router for processing ranges.
+ * Dispatches to Sync (Reverse) or Async (OfflineContext) handlers.
  */
 export async function processRange(buffer, context, type, startTime, endTime, params = {}) {
-  // Synchronous Effects
   if (type === 'reverse') {
     return reverseRange(buffer, startTime, endTime, context);
   }
 
-  // Asynchronous / Offline Effects
   if (['distortion', 'delay', 'bitcrush'].includes(type)) {
     return await renderOfflineEffect(buffer, startTime, endTime, type, params);
   }
@@ -278,41 +275,18 @@ export async function processRange(buffer, context, type, startTime, endTime, pa
   return buffer;
 }
 
-/**
- * Creates a new buffer slice (Trim).
- * * @param {AudioBuffer} buffer - Source buffer.
- * @param {number} startRatio - Start percentage (0-1).
- * @param {number} endRatio - End percentage (0-1).
- * @param {AudioContext} context - Audio context.
- * @returns {AudioBuffer|null} New sliced buffer.
- */
-export function sliceBuffer(buffer, startRatio, endRatio, context) {
-  const startFrame = Math.floor(startRatio * buffer.length);
-  const endFrame = Math.floor(endRatio * buffer.length);
-  const frameCount = endFrame - startFrame;
-
-  if (frameCount <= 0) return null;
-
-  const newBuffer = context.createBuffer(buffer.numberOfChannels, frameCount, buffer.sampleRate);
-
-  for (let i = 0; i < buffer.numberOfChannels; i++) {
-    newBuffer.copyToChannel(buffer.getChannelData(i).slice(startFrame, endFrame), i);
-  }
-
-  return newBuffer;
-}
-
 // ===========================================================================
-// CLOUD FUNCTIONS
+// 5. CLOUD & FIREBASE (PERSISTENCE)
 // ===========================================================================
 
 /**
- * 1. Scarica tutte le banche da Firestore all'avvio
+ * Fetches all sound banks from Firestore.
+ * @returns {Promise<Object>} The banks object.
  */
 export async function loadBanksFromCloud() {
   try {
     const querySnapshot = await getDocs(collection(db, "soundBanks"));
-    soundBanks = {}; // Reset
+    soundBanks = {}; 
 
     querySnapshot.forEach((doc) => {
       soundBanks[doc.id] = doc.data().samples || [];
@@ -320,20 +294,21 @@ export async function loadBanksFromCloud() {
 
     return soundBanks;
   } catch (e) {
+    console.warn("Offline Mode: Could not load banks.", e);
     return {};
   }
 }
 
 /**
- * 2. Crea una nuova banca su Firestore
+ * Creates a new empty bank in Firestore.
+ * @param {string} name 
+ * @returns {Promise<boolean>} Success status
  */
 export async function createNewBank(name) {
   if (soundBanks[name]) return false;
 
-  // Aggiorna locale
-  soundBanks[name] = [];
+  soundBanks[name] = []; // Optimistic UI update
 
-  // Aggiorna Cloud (Usa il nome come ID documento)
   try {
     await setDoc(doc(db, "soundBanks", name), {
       createdAt: new Date(),
@@ -342,65 +317,74 @@ export async function createNewBank(name) {
     });
     return true;
   } catch (e) {
-    console.error("Errore creazione banca:", e);
+    console.error("Error creating bank:", e);
+    delete soundBanks[name]; // Rollback
     return false;
   }
 }
 
 /**
- * 3. Carica file su Storage -> Ottieni URL -> Salva su Firestore
+ * Uploads a WAV blob to Storage and adds metadata to Firestore.
+ * @param {string} bankName 
+ * @param {string} sampleName 
+ * @param {Blob} fileBlob 
  */
 export async function addSampleToBank(bankName, sampleName, fileBlob) {
   if (!soundBanks[bankName]) return;
 
   const user = auth.currentUser;
-  if (!user) throw new Error("Utente non loggato");
+  if (!user) throw new Error("User not logged in");
 
+  // 1. Upload File
   const storageRef = ref(storage, `users/${user.uid}/${bankName}/${sampleName}_${Date.now()}.wav`);
-
   console.log("Uploading to Cloud...");
+  
   const snapshot = await uploadBytes(storageRef, fileBlob);
   const downloadURL = await getDownloadURL(snapshot.ref);
 
+  // 2. Prepare Metadata
   const colors = ["var(--color-red)", "var(--color-ambra)", "var(--color-green)", "var(--color-blu)"];
   const newSample = {
     name: sampleName,
-    url: downloadURL, // URL PERMANENTE del cloud
+    url: downloadURL, 
     color: colors[Math.floor(Math.random() * colors.length)]
   };
 
-  // C. Aggiorna Firestore (arrayUnion aggiunge all'array senza sovrascrivere tutto)
+  // 3. Update Database
   const bankRef = doc(db, "soundBanks", bankName);
   await updateDoc(bankRef, {
     samples: arrayUnion(newSample)
   });
 
-  // D. Aggiorna Locale
+  // 4. Update Local Cache
   soundBanks[bankName].push(newSample);
 
   return newSample;
 }
 
+/**
+ * Deletes a sample from Storage and Firestore.
+ * @param {string} bankName 
+ * @param {Object} sampleObject 
+ */
 export async function deleteSampleFromBank(bankName, sampleObject) {
   if (!soundBanks[bankName]) return;
 
-  // 1. Elimina dal Database (Firestore)
+  // 1. Update Database
   const bankRef = doc(db, "soundBanks", bankName);
   await updateDoc(bankRef, {
-    samples: arrayRemove(sampleObject) // Rimuove esattamente quell'oggetto dall'array
+    samples: arrayRemove(sampleObject) 
   });
 
-  // 2. Elimina il file fisico (Storage)
-  // Creiamo un riferimento partendo dall'URL completo
+  // 2. Delete File from Storage
   try {
     const fileRef = ref(storage, sampleObject.url);
     await deleteObject(fileRef);
-    console.log("File audio eliminato dallo storage.");
+    console.log("Audio file deleted from storage.");
   } catch (error) {
-    console.warn("Impossibile eliminare file dallo storage (forse già assente):", error);
+    console.warn("Could not delete file (maybe already gone):", error);
   }
 
-  // 3. Aggiorna Locale (per aggiornare la UI subito)
-  // Filtriamo via il sample che ha lo stesso nome
+  // 3. Update Local Cache
   soundBanks[bankName] = soundBanks[bankName].filter(s => s.name !== sampleObject.name);
 }

@@ -300,7 +300,7 @@ function createBanksWrapper() {
   select.id = "banks";
   select.className = "banks-dropdown";
 
-  select.addEventListener("change", async (e) => {
+  select.addEventListener("change", async(e) => {
     const value = e.target.value;
 
     if (value === "__NEW_BANK__") {

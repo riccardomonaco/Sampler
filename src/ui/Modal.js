@@ -1,29 +1,27 @@
 /**
- * Modal.js
- * Sistema di finestre modali robusto e autorigenerante.
+ * A Promise-based Modal system for Alerts, Confirms, and Prompts.
+ * Replaces native browser alerts with custom DOM elements.
  */
-
 class ModalSystem {
   constructor() {
     this.overlay = null;
     this.resolvePromise = null;
     this.els = {};
     
-    // Setup listener globali (fatto una volta sola)
+    // Bind keys globally only once
     this.setupGlobalListeners();
   }
 
-  /**
-   * Controlla se l'HTML esiste, altrimenti lo crea.
-   * Questo risolve il problema di Ui.js che svuota il body.
-   */
+  // ===========================================================================
+  // DOM MANAGEMENT
+  // ===========================================================================
+
+  /** Initializes the Modal DOM structure if missing */
   ensureDom() {
-    // Se l'overlay esiste nel documento, siamo a posto
     if (this.overlay && document.body.contains(this.overlay)) {
         return;
     }
 
-    // Altrimenti (ri)creiamo tutto
     this.overlay = document.createElement('div');
     this.overlay.className = 'modal-overlay';
     
@@ -38,7 +36,7 @@ class ModalSystem {
 
     document.body.appendChild(this.overlay);
     
-    // Aggiorniamo i riferimenti
+    // Cache references
     this.els = {
       title: this.overlay.querySelector('#modal-title'),
       msg: this.overlay.querySelector('#modal-message'),
@@ -49,35 +47,42 @@ class ModalSystem {
 
   setupGlobalListeners() {
     document.addEventListener('keydown', (e) => {
-      // Funziona solo se il modale è attivo
       if (!this.overlay || !this.overlay.classList.contains('active')) return;
 
       if (e.key === 'Escape') {
         this.close(null); // Cancel
       }
       if (e.key === 'Enter') {
-          // Clicca il tasto conferma se esiste
           const confirmBtn = this.els.footer ? this.els.footer.querySelector('.btn-confirm') : null;
           if(confirmBtn) confirmBtn.click();
       }
     });
   }
 
-  // Metodo pubblico
+  // ===========================================================================
+  // PUBLIC API
+  // ===========================================================================
+
+  /**
+   * Shows a modal.
+   * @param {'alert'|'confirm'|'prompt'} type 
+   * @param {string} message 
+   * @param {string} [defaultValue=""] 
+   * @returns {Promise<any>} Resolves with true/false or input string.
+   */
   show(type, message, defaultValue = "") {
     return new Promise((resolve) => {
-      // 1. AUTORIGENERAZIONE: Assicurati che l'HTML esista prima di fare qualsiasi cosa
       this.ensureDom();
 
       this.resolvePromise = resolve;
       
-      // 2. Reset UI
+      // Reset State
       this.els.msg.innerText = message;
       this.els.footer.innerHTML = '';
       this.els.input.style.display = 'none';
       this.els.input.value = '';
 
-      // 3. Configurazione bottoni
+      // Configure Type
       if (type === 'alert') {
         this.els.title.innerText = "ATTENTION";
         this.createBtn("OK", "btn-confirm", () => this.close(true));
@@ -96,7 +101,7 @@ class ModalSystem {
         this.createBtn("OK", "btn-confirm", () => this.close(this.els.input.value));
       }
 
-      // 4. Mostra con un piccolo delay per l'animazione CSS
+      // Animate In
       requestAnimationFrame(() => {
           this.overlay.classList.add('active');
           if(type === 'prompt') {
@@ -121,7 +126,6 @@ class ModalSystem {
     if (!this.overlay) return;
     this.overlay.classList.remove('active');
     
-    // Risolvi la promessa
     if (this.resolvePromise) {
       this.resolvePromise(value);
       this.resolvePromise = null;
