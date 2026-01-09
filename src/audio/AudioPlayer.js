@@ -165,14 +165,15 @@ export default class AudioPlayer {
       }
     });
 
+    const container = document.querySelector("#waveform");
+    container.addEventListener("mouseleave", () => {
+      if (this.wavesurfer.isPlaying()) return;
+      this.wavesurfer.setOptions({ dragSelection: true });
+    });
+
     this.regions.on("region-created", (region) => {
       if (this.isSystemRegion(region)) return;
       this.handleRegionCreated(region);
-    });
-
-    this.regions.on("region-updated", (region) => {
-      if (this.isSystemRegion(region)) return;
-      this.handleRegionUpdated(region);
     });
 
     this.wavesurfer.on("region-click", (region, e) => {
@@ -582,6 +583,7 @@ export default class AudioPlayer {
     const applyBtn = document.createElement('div');
     applyBtn.className = 'region-apply-btn';
     applyBtn.innerText = "APPLY";
+
     Object.assign(applyBtn.style, {
       position: 'absolute',
       bottom: '50px',
@@ -602,6 +604,7 @@ export default class AudioPlayer {
     });
 
     applyBtn.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       this.freezeCurrentEffect();
     };
@@ -752,7 +755,7 @@ export default class AudioPlayer {
         }
       }
 
-      this.closeEffectPanel(); 
+      this.closeEffectPanel();
       if (newBuffer) await this.reloadWithBuffer(newBuffer);
     } catch (e) {
       console.error("Freeze Error:", e);
@@ -1131,7 +1134,7 @@ export default class AudioPlayer {
 
     // checking if right mouse click
     bpmLed.addEventListener("contextmenu", (e) => {
-      e.preventDefault(); 
+      e.preventDefault();
       e.stopPropagation();
 
       if (bpmLed.querySelector("input")) return;
