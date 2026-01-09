@@ -1,6 +1,7 @@
-import { db, storage, auth } from "../../src/firebase"; 
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, collection, getDocs, arrayRemove } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+/**
+ * AudioUtils.js
+ * Pure DSP & Math helpers.
+ */
 
 // ===========================================================================
 // 1. CONSTANTS & STATE
@@ -127,7 +128,7 @@ function applyMathBitcrush(buffer, bits, normFreq) {
   const channels = buffer.numberOfChannels;
   const len = buffer.length;
   const step = 1 / Math.pow(2, bits);
-  const stepScale = 1 / step; 
+  const stepScale = 1 / step;
   const stepSize = Math.floor(1 / normFreq);
 
   for (let c = 0; c < channels; c++) {
@@ -275,116 +276,3 @@ export async function processRange(buffer, context, type, startTime, endTime, pa
   return buffer;
 }
 
-// ===========================================================================
-// 5. CLOUD & FIREBASE (PERSISTENCE)
-// ===========================================================================
-
-/**
- * Fetches all sound banks from Firestore.
- * @returns {Promise<Object>} The banks object.
- */
-export async function loadBanksFromCloud() {
-  try {
-    const querySnapshot = await getDocs(collection(db, "soundBanks"));
-    soundBanks = {}; 
-
-    querySnapshot.forEach((doc) => {
-      soundBanks[doc.id] = doc.data().samples || [];
-    });
-
-    return soundBanks;
-  } catch (e) {
-    console.warn("Offline Mode: Could not load banks.", e);
-    return {};
-  }
-}
-
-/**
- * Creates a new empty bank in Firestore.
- * @param {string} name 
- * @returns {Promise<boolean>} Success status
- */
-export async function createNewBank(name) {
-  if (soundBanks[name]) return false;
-
-  soundBanks[name] = []; // Optimistic UI update
-
-  try {
-    await setDoc(doc(db, "soundBanks", name), {
-      createdAt: new Date(),
-      owner: auth.currentUser ? auth.currentUser.uid : "anon",
-      samples: []
-    });
-    return true;
-  } catch (e) {
-    console.error("Error creating bank:", e);
-    delete soundBanks[name]; // Rollback
-    return false;
-  }
-}
-
-/**
- * Uploads a WAV blob to Storage and adds metadata to Firestore.
- * @param {string} bankName 
- * @param {string} sampleName 
- * @param {Blob} fileBlob 
- */
-export async function addSampleToBank(bankName, sampleName, fileBlob) {
-  if (!soundBanks[bankName]) return;
-
-  const user = auth.currentUser;
-  if (!user) throw new Error("User not logged in");
-
-  // 1. Upload File
-  const storageRef = ref(storage, `users/${user.uid}/${bankName}/${sampleName}_${Date.now()}.wav`);
-  console.log("Uploading to Cloud...");
-  
-  const snapshot = await uploadBytes(storageRef, fileBlob);
-  const downloadURL = await getDownloadURL(snapshot.ref);
-
-  // 2. Prepare Metadata
-  const colors = ["var(--color-red)", "var(--color-ambra)", "var(--color-green)", "var(--color-blu)"];
-  const newSample = {
-    name: sampleName,
-    url: downloadURL, 
-    color: colors[Math.floor(Math.random() * colors.length)]
-  };
-
-  // 3. Update Database
-  const bankRef = doc(db, "soundBanks", bankName);
-  await updateDoc(bankRef, {
-    samples: arrayUnion(newSample)
-  });
-
-  // 4. Update Local Cache
-  soundBanks[bankName].push(newSample);
-
-  return newSample;
-}
-
-/**
- * Deletes a sample from Storage and Firestore.
- * @param {string} bankName 
- * @param {Object} sampleObject 
- */
-export async function deleteSampleFromBank(bankName, sampleObject) {
-  if (!soundBanks[bankName]) return;
-
-  // 1. Update Database
-  const bankRef = doc(db, "soundBanks", bankName);
-  await updateDoc(bankRef, {
-    samples: arrayRemove(sampleObject) 
-  });
-
-  // 2. Delete File from Storage
-  try {
-    const fileRef = ref(storage, sampleObject.url);
-    await deleteObject(fileRef);
-    console.log("Audio file deleted from storage.");
-  } catch (error) {
-    console.warn("Could not delete file (maybe already gone):", error);
-  }
-
-  // 3. Update Local Cache
-  soundBanks[bankName] = soundBanks[bankName].filter(s => s.name !== sampleObject.name);
-}

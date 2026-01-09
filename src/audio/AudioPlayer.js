@@ -8,7 +8,9 @@ import {
   sliceBuffer,
   makeDistortionCurve
 } from "./AudioUtils.js";
+import { createBank } from "../ui/Ui.js";
 import { Modal } from "../ui/Modal.js";
+import { bankService } from "../services/BankService.js";
 
 /**
  * Main AudioPlayer class.
@@ -1407,15 +1409,18 @@ export default class AudioPlayer {
     const a = document.createElement("a");
     a.style.display = "none";
     a.href = url;
-    a.download = "sampler_export.wav";
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    let defaultName = "My_wild_sample001";
+    let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
+    a.download = sampleName;
+    if (sampleName) {
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
   }
 
   async saveToCurrentBank() {
-    // 1. Controlli preliminari
     const bankSelect = document.getElementById("banks");
     const currentBank = bankSelect ? bankSelect.value : null;
 
@@ -1428,31 +1433,26 @@ export default class AudioPlayer {
       return;
     }
 
-    // 2. UI Feedback (Loading sul bottone)
     const btn = document.getElementById("save-bank-btn");
     const originalIcon = btn.innerHTML;
-    btn.innerHTML = `<i class="pixelart-icons-font-clock"></i>`; // Spinner/Orologio
+    btn.innerHTML = `<i class="pixelart-icons-font-clock"></i>`;
     btn.style.pointerEvents = "none";
 
     try {
-      // 3. Genera il file processato (EQ + Effetti applicati)
       const wavBlob = await this.getProcessedWavBlob();
 
-      // 4. Chiedi il nome
-      // Ottieni il nome attuale dal file caricato o usa un default
       let defaultName = "Rename your sample";
-      // Prova a recuperare il nome dal titolo della traccia se esiste, altrimenti "Resample"
 
       let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
       if (!sampleName) throw new Error("Salvataggio annullato");
 
-      // 5. Carica su Firebase (riutilizziamo la tua funzione!)
-      // Nota: wavBlob è un Blob, che Firebase accetta come un File
-      await addSampleToBank(currentBank, sampleName, wavBlob);
+      const colors = ["var(--color-red)", "var(--color-ambra)", "var(--color-green)", "var(--color-blu)"];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-      // 6. Aggiorna la UI della banca
+      await bankService.addSample(currentBank, sampleName, wavBlob, randomColor);
+
       createBank(currentBank);
-      alert("Sample salvato nella bank!");
+      await Modal.show('alert', "Sample salvato nella bank!");
 
     } catch (error) {
       if (error.message !== "Salvataggio annullato") {
@@ -1460,7 +1460,6 @@ export default class AudioPlayer {
         alert("Errore durante il salvataggio.");
       }
     } finally {
-      // 7. Ripristina bottone
       btn.innerHTML = originalIcon;
       btn.style.pointerEvents = "auto";
     }

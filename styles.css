@@ -170,7 +170,7 @@ body {
   display: inline;
   padding: 10px;
   background-color: var(--lgrey);
-  width: fit-content;
+  width: 210px;
   height: 545px;
   position: relative;
 }
@@ -346,10 +346,18 @@ body {
 
 #waveform {
   position: relative !important;
+  overflow: hidden !important;
   background: var(--dgrey);
   width: 100%;
   box-sizing: border-box;
+  height: 250px;
   overflow: hidden;
+}
+
+#waveform shadow-root, 
+#waveform > div, 
+#waveform canvas {
+  overflow: hidden !important;
 }
 
 #waveform.dragover {

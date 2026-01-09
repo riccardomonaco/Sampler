@@ -8,7 +8,7 @@ import { createPageDefault } from "./ui/Ui.js";
 import AudioPlayer from "./audio/AudioPlayer.js";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "./firebase.js";
-import { loadBanksFromCloud } from "./audio/AudioUtils.js";
+import { bankService } from "./services/BankService.js";
 import "../node_modules/pixelarticons/fonts/pixelart-icons-font.css"
 
 // Global AudioPlayer instance
@@ -26,7 +26,7 @@ async function initApp() {
     console.log("Logged in as:", auth.currentUser.uid);
 
     // 2. Scarica i dati delle banche
-    await loadBanksFromCloud();
+    await bankService.loadAll();
     console.log("Banks loaded!");
     // 1. Build the User Interface
     // This clears any existing DOM and builds the Sampler, Effects, and Banks.

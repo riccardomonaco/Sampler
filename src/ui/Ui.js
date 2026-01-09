@@ -1,10 +1,16 @@
-import { eqBands, soundBanks, addSampleToBank, deleteSampleFromBank } from "../audio/AudioUtils";
+import { eqBands } from "../audio/AudioUtils";
+import { bankService } from "../services/BankService.js";
 import { Modal } from "../ui/Modal.js";
 
 // ===========================================================================
 // 1. HELPER COMPONENTS
 // ===========================================================================
 
+/**
+ * Creates the hotbar commands buttons.
+ *
+ * @return {*} 
+ */
 function createCommandsButtons() {
   const container = document.createElement("div");
   container.className = "command-buttons";
@@ -12,7 +18,6 @@ function createCommandsButtons() {
   const buttons = [
     { id: "play-button", icon: "pixelart-icons-font-play" },
     { id: "pause-button", icon: "pixelart-icons-font-pause" },
-    // STOP: Usiamo un placeholder speciale per identificarlo
     { id: "stop-button", isStop: true }
   ];
 
@@ -22,16 +27,12 @@ function createCommandsButtons() {
     div.id = btn.id;
 
     if (btn.isStop) {
-      // --- NUOVO SVG STOP ---
-      // Disegniamo un quadrato di 12x12 pixel centrato in una vista 24x24.
-      // Questo lascia lo "spazio vuoto" attorno, rendendolo grande uguale agli altri visivamente.
       div.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
         <rect x="6" y="6" width="15" height="15" />
       </svg>
     `;
     } else {
-      // Icone standard (Play/Pause)
       div.innerHTML = `<i class="${btn.icon}"></i>`;
     }
 
@@ -42,7 +43,7 @@ function createCommandsButtons() {
 }
 
 /**
- * Crea una manopola (Knob) statica.
+ * Creates static knob.
  */
 function createKnob(id, label) {
   const wrapper = document.createElement("div");
@@ -74,31 +75,30 @@ function createKnob(id, label) {
 }
 
 /**
- * Genera la griglia di Floppy usando le IMMAGINI come nel tuo HTML.
+ * Generates floppy disk effects grid.
  */
 function createFloppyDeck() {
   const wrapper = document.createElement("div");
   wrapper.className = "fx-buttons-wrapper";
 
   const container = document.createElement("div");
-  container.className = "fx-buttons"; // Classe originale dell'HTML
+  container.className = "fx-buttons";
 
   const effects = [
     { id: "reverse", img: "reverse.png", alt: "Reverse FX" },
     { id: "delay", img: "delay.png", alt: "Delay FX" },
-    { id: "distortion", img: "distort.png", alt: "Distort FX" }, // Nota: controlla se il file è distort.png o distortion.png
+    { id: "distortion", img: "distort.png", alt: "Distort FX" },
     { id: "bitcrush", img: "bitcrush.png", alt: "Bitcrush FX" }
   ];
 
   effects.forEach(fx => {
     const img = document.createElement("img");
-    img.src = `./assets/img/${fx.img}`; // Percorso relativo alle immagini
+    img.src = `./assets/img/${fx.img}`;
     img.className = "fx-img";
     img.draggable = true;
     img.setAttribute("data-effect", fx.id);
     img.alt = fx.alt;
 
-    // Evento Drag Nativo
     img.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("effectType", fx.id);
       e.dataTransfer.effectAllowed = "copy";
@@ -118,7 +118,7 @@ function createBpmSection() {
   const led = document.createElement("div");
   led.id = "bpm-led";
   led.className = "bpm-led";
-  led.innerText = "tap BPM"; // Lowercase 'tap' come nel tuo HTML
+  led.innerText = "tap BPM";
   wrapper.appendChild(led);
   return wrapper;
 }
@@ -147,7 +147,7 @@ function createSampler() {
   // EQ Grid
   const eqGrid = document.createElement("div");
   eqGrid.className = "eq-grid";
-  eqGrid.appendChild(createEqualizer()); // Usa la tua funzione sotto
+  eqGrid.appendChild(createEqualizer());
 
   sampler.append(waveform, eqGrid);
 
@@ -155,7 +155,7 @@ function createSampler() {
   const commands = document.createElement("div");
   commands.className = "commands border-shadow";
 
-  // Ricostruzione fedele della barra comandi HTML
+  // Commands hotbar
   const pbLabel = document.createElement("div"); pbLabel.className = "loop-label"; pbLabel.innerText = "PLAYBACK";
   const cmdBtns = createCommandsButtons();
 
@@ -166,22 +166,22 @@ function createSampler() {
   const loopBtns = document.createElement("div");
   loopBtns.className = "loop-buttons";
 
-  // Definiamo i bottoni con le nuove classi lunghe
+  // Loop buttons
   const loopControls = [
-    { id: "d2-button", icon: "pixelart-icons-font-prev" },   // Indietro / Dimezza
-    { id: "loop-button", icon: "pixelart-icons-font-reload" }, // Loop / Ricarica
-    { id: "x2-button", icon: "pixelart-icons-font-next" }    // Avanti / Raddoppia
+    { id: "d2-button", icon: "pixelart-icons-font-prev" },
+    { id: "loop-button", icon: "pixelart-icons-font-reload" },
+    { id: "x2-button", icon: "pixelart-icons-font-next" }
   ];
 
   loopControls.forEach(b => {
     const d = document.createElement("div");
     d.className = "old-button";
     d.id = b.id;
-    // Inseriamo l'icona
     d.innerHTML = `<i class="${b.icon}"></i>`;
     loopBtns.appendChild(d);
   });
-  // --- SEZIONE UTILS ---
+
+  // --- UTILS SECTION ---
   const utilsLabel = document.createElement("div");
   utilsLabel.className = "loop-label";
   utilsLabel.innerText = "UTILS";
@@ -189,36 +189,35 @@ function createSampler() {
   const utilsBtns = document.createElement("div");
   utilsBtns.className = "rec-buttons";
 
-/*   // 1. SNAP (Calamita)
-  const snapBtn = document.createElement("div");
-  snapBtn.className = "old-button";
-  snapBtn.id = "snap-btn";
-  snapBtn.title = "Snap to Grid";
+  /*   // 1. SNAP
+    const snapBtn = document.createElement("div");
+    snapBtn.className = "old-button";
+    snapBtn.id = "snap-btn";
+    snapBtn.title = "Snap to Grid";
+  
+    // Inseriamo l'SVG direttamente. fill="currentColor" è il segreto per farla colorare col CSS.
+    snapBtn.innerHTML = `
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+        <rect x="5" y="4" width="4" height="4" />
+        <rect x="5" y="10" width="4" height="5" />
+  
+        <rect x="15" y="4" width="4" height="4" />
+        <rect x="15" y="10" width="4" height="5" />
+        
+        <rect x="5" y="15" width="5" height="2" />
+        <rect x="14" y="15" width="5" height="2" />
+        
+        <rect x="7" y="17" width="10" height="2" />
+        
+        <rect x="9" y="19" width="6" height="1" />
+      </svg>
+    `; */
 
-  // Inseriamo l'SVG direttamente. fill="currentColor" è il segreto per farla colorare col CSS.
-  snapBtn.innerHTML = `
-<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display: block;">
-      <rect x="5" y="4" width="4" height="4" />
-      <rect x="5" y="10" width="4" height="5" />
-
-      <rect x="15" y="4" width="4" height="4" />
-      <rect x="15" y="10" width="4" height="5" />
-      
-      <rect x="5" y="15" width="5" height="2" />
-      <rect x="14" y="15" width="5" height="2" />
-      
-      <rect x="7" y="17" width="10" height="2" />
-      
-      <rect x="9" y="19" width="6" height="1" />
-    </svg>
-  `; */
-
-  // 2. CUT (Forbici)
+  // 2. CUT
   const cutBtn = document.createElement("div");
   cutBtn.className = "old-button";
   cutBtn.id = "trim-btn";
   cutBtn.title = "Trim Audio";
-  // Usa px-scissors (o px-cut se preferisci un'altra icona)
   cutBtn.innerHTML = '<i class="pixelart-icons-font-cut"></i>';
 
   // 3. EXPORT (Download)
@@ -226,21 +225,16 @@ function createSampler() {
   exportBtn.className = "old-button";
   exportBtn.id = "export-btn";
   exportBtn.title = "Export to WAV";
-  // Usa px-download
   exportBtn.innerHTML = '<i class="pixelart-icons-font-download"></i>';
 
   const saveBtn = document.createElement("div");
   saveBtn.className = "old-button";
-  saveBtn.id = "save-bank-btn"; // ID per il JS
+  saveBtn.id = "save-bank-btn";
   saveBtn.title = "Save to Current Bank";
-  // Usiamo l'icona floppy disk
   saveBtn.innerHTML = '<i class="pixelart-icons-font-save"></i>';
 
-  // Aggiungiamo saveBtn alla lista (puoi cambiare l'ordine se vuoi)
   utilsBtns.append(cutBtn, saveBtn, exportBtn);
 
-  // Aggiungiamo tutto al container comandi
-  // Nota: Rimuovi le vecchie variabili recLabel, recBtns, trimBtns se presenti
   commands.append(pbLabel, cmdBtns, loopLabel, loopBtns, utilsLabel, utilsBtns);
   wrapper.append(sampler, commands);
   return wrapper;
@@ -260,18 +254,12 @@ function createEffects() {
 
   // 2. KNOBS RACK
   const knobsRack = document.createElement("div");
-  knobsRack.className = "knobs-rack hidden"; // <--- AGGIUNGI 'hidden' QUI
-  knobsRack.id = "knobs-rack"; // Diamo un ID per trovarlo facilmente dal JS
+  knobsRack.className = "knobs-rack hidden";
+  knobsRack.id = "knobs-rack";
 
   knobsRack.appendChild(createKnob("p1", "PARAM 1"));
   knobsRack.appendChild(createKnob("p2", "PARAM 2"));
   knobsRack.appendChild(createKnob("vol", "FX LEVEL"));
-
-  /*   const freezeBtn = document.createElement("div");
-    freezeBtn.className = "old-button";
-    freezeBtn.id = "freeze-btn";
-    freezeBtn.innerText = "Apply";
-    knobsRack.appendChild(freezeBtn); */
 
   // 3. BPM (Bottom)
   const bpmSection = createBpmSection();
@@ -281,8 +269,8 @@ function createEffects() {
 }
 
 /**
- * Costruisce SOLO lo scheletro della colonna Banks.
- * Il contenuto (pad) verrà riempito da createBank chiamando l'evento change.
+ * Creates skeleton of banks area.
+ * Content will be placed by createBank.
  */
 function createBanksWrapper() {
   const wrapper = document.createElement("div");
@@ -300,39 +288,31 @@ function createBanksWrapper() {
   select.id = "banks";
   select.className = "banks-dropdown";
 
-  select.addEventListener("change", async(e) => {
+  select.addEventListener("change", async (e) => {
     const value = e.target.value;
 
     if (value === "__NEW_BANK__") {
-      // 1. Chiedi il nome
       const newName = await Modal.show('prompt', "Enter new Sound Bank name:");
 
-      // 2. Se valido, crea e aggiorna
       if (newName && newName.trim() !== "") {
-        // Importiamo dinamicamente per evitare riferimenti circolari se necessario, 
-        // ma dato che siamo nello stesso modulo bundle, usiamo l'import in alto.
-        // (Assicurati di importare createNewBank da AudioUtils in cima al file!)
-        const { createNewBank } = require("../audio/AudioUtils"); // O usa l'import ES6 in cima
+        const success = await bankService.createBank(newName);
 
-        // Nota: Se usi ES modules puri, aggiungi `import { createNewBank } ...` in cima al file Ui.js
-
-        if (createNewBank(newName)) {
-          initBankMenu(); // Ricarica il menu
-          select.value = newName; // Seleziona la nuova banca
-          createBank(newName); // Renderizza la griglia vuota
+        if (success) {
+          initBankMenu();
+          select.value = newName;
+          createBank(newName);
         } else {
-          alert("Bank already exists or invalid name.");
-          select.value = ""; // Reset
+          await Modal.show('alert', "Bank already exists or invalid name.");
+          select.value = "";
         }
       } else {
-        select.value = ""; // Annullato dall'utente
+        select.value = "";
       }
     } else {
       createBank(value);
     }
   });
 
-  // Event listener per popolare i pad quando cambia il menu
   select.addEventListener("change", (e) => {
     createBank(e.target.value);
   });
@@ -387,19 +367,15 @@ function formatFreqLabel(freq) {
   return freq >= 1000 ? `${freq / 1000}kHz` : `${freq} Hz`;
 }
 
-// Funzione originale mantenuta per popolare i pad
-// src/ui/Ui.js
-
-function createBank(bankName) {
+export function createBank(bankName) {
   const banksContent = document.querySelector(".banks-content");
   if (!banksContent) return;
 
   banksContent.innerHTML = "";
   if (!bankName || bankName === "__NEW_BANK__") return;
 
-  const samples = soundBanks[bankName] || [];
+  const samples = bankService.localCache[bankName] || [];
 
-  // 1. Renderizza i sample esistenti
   samples.forEach((sample) => {
     const pad = document.createElement("div");
     pad.classList.add("sample-pad");
@@ -422,21 +398,19 @@ function createBank(bankName) {
       e.stopPropagation();
     });
 
-    // Evento Click sul tasto Delete
     delBtn.addEventListener("click", async (e) => {
-      e.stopPropagation(); // FERMA L'EVENTO! Altrimenti il pad potrebbe suonare o essere selezionato
+      e.stopPropagation();
       e.preventDefault();
 
       const confirmed = await Modal.show('confirm', `Delete "${sample.name}"?`);
 
       if (confirmed) {
-        // Feedback visivo immediato (opzionale)
         pad.style.opacity = "0.5";
         pad.style.pointerEvents = "none";
 
         try {
-          await deleteSampleFromBank(bankName, sample);
-          createBank(bankName); // Ricarica la griglia
+          await bankService.deleteSample(bankName, sample);
+          createBank(bankName);
         } catch (err) {
           console.error(err);
           alert("Errore durante l'eliminazione");
@@ -449,22 +423,19 @@ function createBank(bankName) {
     banksContent.appendChild(pad);
   });
 
-  // 2. Renderizza il pulsante "+"
   const addPad = document.createElement("div");
   addPad.classList.add("sample-pad", "add-sample-pad");
   addPad.innerHTML = `<span>+</span>`;
   addPad.title = "Add Sample from Disk";
 
-  // 3. CREA L'INPUT FILE QUI (PRIMA DI USARLO)
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.accept = "audio/*";
   fileInput.style.display = "none";
 
-  // 4. ORA puoi aggiungere i Listener
   addPad.addEventListener("click", () => {
     if (!addPad.classList.contains("loading")) {
-      fileInput.click(); // Qui fileInput esiste già!
+      fileInput.click();
     }
   });
 
@@ -477,11 +448,11 @@ function createBank(bankName) {
     let chosenName = await Modal.show('prompt', "Rename your sample:", originalName);
 
     if (chosenName === null) {
-      fileInput.value = ""; // Resetta l'input per permettere di riselezionare lo stesso file
-      return; // Interrompi tutto, non caricare nulla
+      fileInput.value = "";
+      return;
     }
 
-    chosenName = chosenName.trim(); // Rimuove spazi vuoti inizio/fine
+    chosenName = chosenName.trim();
     if (chosenName === "") {
       chosenName = originalName;
     }
@@ -495,8 +466,9 @@ function createBank(bankName) {
     addPad.innerHTML = `<i class="pixelart-icons-font-clock"></i>`;
 
     try {
-      // Assicurati che addSampleToBank sia importata in alto nel file!
-      await addSampleToBank(bankName, displayName, file);
+      const colors = ["var(--color-red)", "var(--color-ambra)", "var(--color-green)", "var(--color-blu)"];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+      await bankService.addSample(bankName, displayName, file, randomColor);
       createBank(bankName);
     } catch (err) {
       console.error(err);
@@ -506,9 +478,7 @@ function createBank(bankName) {
     }
   });
 
-  // Appendiamo tutto
   banksContent.appendChild(addPad);
-  // Nota: non serve appendere fileInput al DOM, basta averlo in memoria
 }
 
 export function initBankMenu() {
@@ -524,7 +494,7 @@ export function initBankMenu() {
   defaultOption.hidden = true;
   bankSelect.appendChild(defaultOption);
 
-  Object.keys(soundBanks).forEach((bankName) => {
+  Object.keys(bankService.localCache).forEach((bankName) => {
     const option = document.createElement("option");
     option.value = bankName;
     option.textContent = bankName;
@@ -548,8 +518,8 @@ export function createPageDefault() {
   wrapper.className = "wrapper";
 
   wrapper.appendChild(createSampler());
-  wrapper.appendChild(createEffects());     // Ora include Floppy Img + Knobs
-  wrapper.appendChild(createBanksWrapper()); // Struttura HTML corretta per le banche
+  wrapper.appendChild(createEffects());
+  wrapper.appendChild(createBanksWrapper());
 
   const root = document.getElementById("root") || document.body;
   root.innerHTML = "";
