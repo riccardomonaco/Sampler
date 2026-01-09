@@ -93,7 +93,7 @@ function createFloppyDeck() {
 
   effects.forEach(fx => {
     const img = document.createElement("img");
-    img.src = `/assets/img/${fx.img}`;
+    img.src = `./assets/img/${fx.img}`;
     img.className = "fx-img";
     img.draggable = true;
     img.setAttribute("data-effect", fx.id);
