@@ -2,8 +2,8 @@
  * BankService.js
  * Firebase logic
  */
-import { db, storage, auth } from "../firebase"; 
-import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs } from "firebase/firestore";
+import { db, storage, auth } from "../firebase";
+import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs, deleteDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 class BankService {
@@ -27,8 +27,8 @@ class BankService {
 
   async createBank(name) {
     if (this.localCache[name]) return false;
-    this.localCache[name] = []; 
-    
+    this.localCache[name] = [];
+
     try {
       await setDoc(doc(db, "soundBanks", name), {
         createdAt: new Date(),
@@ -43,25 +43,78 @@ class BankService {
     }
   }
 
+  async deleteBank(bankName) {
+    if (!auth.currentUser) throw new Error("User not logged in");
+
+    const bankSamples = this.localCache[bankName] || [];
+
+    try {
+      const deletePromises = bankSamples.map(sample => {
+        let fileRef;
+
+        // A. Se abbiamo il percorso sicuro, usiamo quello
+        if (sample.fullPath) {
+          fileRef = ref(storage, sample.fullPath);
+        }
+        // B. Fallback per vecchi sample: Estraiamo il path dall'URL HTTP
+        else if (sample.url) {
+          try {
+            // L'URL è tipo: .../o/users%2Fuid%2Ffile.wav?alt=...
+            // Prendiamo la parte tra '/o/' e '?' e decodifichiamo i caratteri speciali
+            const pathStart = sample.url.indexOf('/o/') + 3;
+            const pathEnd = sample.url.indexOf('?');
+            // Se l'URL è strano, prendiamo tutto dopo /o/
+            const rawPath = pathEnd > -1 ? sample.url.substring(pathStart, pathEnd) : sample.url.substring(pathStart);
+            const decodedPath = decodeURIComponent(rawPath);
+
+            fileRef = ref(storage, decodedPath);
+          } catch (err) {
+            console.warn("Impossibile estrarre path dall'URL:", sample.name);
+            return Promise.resolve();
+          }
+        }
+
+        if (fileRef) {
+          return deleteObject(fileRef).catch(e => {
+            console.warn(`File ${sample.name} già rimosso o non trovato`, e);
+          });
+        }
+        return Promise.resolve();
+      });
+
+      await Promise.all(deletePromises);
+
+      await deleteDoc(doc(db, "soundBanks", bankName));
+
+      delete this.localCache[bankName];
+
+      return true;
+    } catch (e) {
+      console.error("BankService: Delete bank failed", e);
+      return false;
+    }
+  }
+
   async addSample(bankName, sampleName, blob, color) {
     if (!auth.currentUser) throw new Error("User not logged in");
-    
-    // 1. Upload Storage
+
     const storageRef = ref(storage, `users/${auth.currentUser.uid}/${bankName}/${sampleName}_${Date.now()}.wav`);
     const snapshot = await uploadBytes(storageRef, blob);
     const url = await getDownloadURL(snapshot.ref);
 
-    // 2. Metadata
-    const newSample = { name: sampleName, url, color };
+    const newSample = {
+      name: sampleName,
+      url,
+      color,
+      fullPath: snapshot.ref.fullPath
+    };
 
-    // 3. DB Update
     await updateDoc(doc(db, "soundBanks", bankName), {
       samples: arrayUnion(newSample)
     });
 
-    // 4. Cache Update
-    if(this.localCache[bankName]) this.localCache[bankName].push(newSample);
-    
+    if (this.localCache[bankName]) this.localCache[bankName].push(newSample);
+
     return newSample;
   }
 
@@ -79,7 +132,7 @@ class BankService {
     }
 
     // 3. Cache Update
-    if(this.localCache[bankName]) {
+    if (this.localCache[bankName]) {
       this.localCache[bankName] = this.localCache[bankName].filter(s => s.name !== sampleObject.name);
     }
   }

@@ -443,7 +443,7 @@ body {
   gap: 10px;
   padding: 10px;
   box-sizing: border-box;
-  height: 73%;
+  height: 77%;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -1101,7 +1101,6 @@ body {
   border-color: var(--color-green);
 }
 
-/* Footer con i bottoni */
 .modal-footer {
   display: flex;
   justify-content: center;
@@ -1143,4 +1142,38 @@ body {
 .btn-cancel:hover {
   background-color: var(--lgrey);
   color: var(--black);
+}
+
+.banks-footer {
+  position: absolute;
+  bottom: 15px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.delete-bank-btn {
+  pointer-events: auto; 
+  background-color: var(--dgrey);
+  color: var(--white);
+  font-size: 0.8rem !important;
+  padding: 5px 10px;
+  box-shadow: 3px 3px 0px var(--black);
+  opacity: 0.9;
+}
+
+.delete-bank-btn:hover {
+  background-color: var(--color-red);
+  transform: translateY(-1px);
+  box-shadow: 4px 4px 0px var(--black);
+  opacity: 1;
+}
+
+.delete-bank-btn:active {
+  transform: translateY(2px);
+  box-shadow: 1px 1px 0px var(--black);
 }

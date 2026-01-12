@@ -291,6 +291,12 @@ function createBanksWrapper() {
   select.addEventListener("change", async (e) => {
     const value = e.target.value;
 
+    if (value && value !== "__NEW_BANK__") {
+      delBtn.style.display = "flex";
+    } else {
+      delBtn.style.display = "none";
+    }
+
     if (value === "__NEW_BANK__") {
       const newName = await Modal.show('prompt', "Enter new Sound Bank name:");
 
@@ -304,9 +310,11 @@ function createBanksWrapper() {
         } else {
           await Modal.show('alert', "Bank already exists or invalid name.");
           select.value = "";
+          delBtn.style.display = "none";
         }
       } else {
         select.value = "";
+        delBtn.style.display = "none";
       }
     } else {
       createBank(value);
@@ -322,7 +330,37 @@ function createBanksWrapper() {
   const content = document.createElement("div");
   content.className = "banks-content";
 
-  wrapper.append(menu, content);
+  const footer = document.createElement("div");
+  footer.className = "banks-footer";
+
+  const delBtn = document.createElement("div");
+  delBtn.id = "delete-bank-btn";
+  delBtn.className = "old-button delete-bank-btn";
+  delBtn.innerText = "DELETE BANK";
+  delBtn.style.display = "none";
+
+  delBtn.addEventListener("click", async () => {
+    const currentBank = select.value;
+    if (!currentBank || currentBank === "__NEW_BANK__") return;
+
+    const confirmed = await Modal.show('confirm', `PERMANENTLY DELETE\n"${currentBank}"?`);
+
+    if (confirmed) {
+      const success = await bankService.deleteBank(currentBank);
+      if (success) {
+        initBankMenu();
+        createBank(null); 
+        delBtn.style.display = "none";
+        await Modal.show('alert', "Bank deleted successfully.");
+      } else {
+        await Modal.show('alert', "Error deleting bank.");
+      }
+    }
+  });
+
+  footer.appendChild(delBtn);
+
+  wrapper.append(menu, content, footer);
   return wrapper;
 }
 
