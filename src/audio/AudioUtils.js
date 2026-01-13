@@ -1,10 +1,10 @@
 /**
  * AudioUtils.js
- * Pure DSP & Math helpers.
+ * DSP & Math helpers.
  */
 
 // ===========================================================================
-// 1. CONSTANTS & STATE
+// 1. CONSTANTS
 // ===========================================================================
 
 /** @type {Object.<string, Array>} Local cache of sound banks */
@@ -14,12 +14,11 @@ export let soundBanks = {};
 export const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
 // ===========================================================================
-// 2. WAV & BUFFER UTILITIES
+// 2. WAV & BUFFER 
 // ===========================================================================
 
 /**
  * Converts an AudioBuffer to a WAV formatted Blob.
- * Essential for exporting the final master or saving samples.
  * @param {AudioBuffer} abuffer - The source audio buffer.
  * @param {number} [len] - Optional override for length.
  * @returns {Blob} The WAV file.
@@ -37,7 +36,7 @@ export function bufferToWave(abuffer, len) {
     }
   }
 
-  // Write WAV Header
+  // writing WAV header
   writeString(view, 0, 'RIFF');
   view.setUint32(4, 36 + lengthInBytes, true);
   writeString(view, 8, 'WAVE');
@@ -52,7 +51,7 @@ export function bufferToWave(abuffer, len) {
   writeString(view, 36, 'data');
   view.setUint32(40, lengthInBytes, true);
 
-  // Write PCM Data
+  // writing PCM data
   const dataView = new Int16Array(buffer, 44, length * numOfChan);
   const channels = [];
   for (let i = 0; i < numOfChan; i++) channels.push(abuffer.getChannelData(i));
@@ -61,7 +60,7 @@ export function bufferToWave(abuffer, len) {
   for (let i = 0; i < length; i++) {
     for (let ch = 0; ch < numOfChan; ch++) {
       let sample = channels[ch][i];
-      // Soft clipping to avoid ugly digital distortion
+      // soft clipping to avoid digital distortion
       sample = Math.max(-1, Math.min(1, sample));
       // 16-bit conversion
       dataView[offset++] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
@@ -96,7 +95,7 @@ export function sliceBuffer(buffer, startRatio, endRatio, context) {
 }
 
 // ===========================================================================
-// 3. DSP & MATH HELPERS
+// 3. DSP & MATH
 // ===========================================================================
 
 /**
@@ -192,25 +191,25 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
   const sampleRate = originalBuffer.sampleRate;
   const channels = originalBuffer.numberOfChannels;
 
-  // Calculate precise frames
+  // calculating precise frames
   const startFrame = Math.floor(regionStart * sampleRate);
   const endFrame = Math.floor(regionEnd * sampleRate);
   const lengthFrame = endFrame - startFrame;
 
   if (lengthFrame <= 0) return originalBuffer;
 
-  // 1. Setup Offline Context
+  // setupping offline context
   const clipCtx = new OfflineAudioContext(channels, lengthFrame, sampleRate);
   const clipSource = clipCtx.createBufferSource();
 
-  // 2. Extract Clip
+  // extracting clip
   const tempBuffer = clipCtx.createBuffer(channels, lengthFrame, sampleRate);
   for (let c = 0; c < channels; c++) {
     tempBuffer.copyToChannel(originalBuffer.getChannelData(c).slice(startFrame, endFrame), c);
   }
   clipSource.buffer = tempBuffer;
 
-  // 3. Build Graph
+  // building graph
   let inputNode = clipSource;
   let endNode = clipCtx.destination;
 
@@ -235,26 +234,25 @@ export async function renderOfflineEffect(originalBuffer, regionStart, regionEnd
     delay.connect(endNode);
   }
   else if (effectType === 'bitcrush') {
-    // Bitcrush is handled post-render via math for pixel-perfect results
     inputNode.connect(endNode);
   }
 
-  // 4. Render
+  // rendering
   clipSource.start(0);
   let processedClip = await clipCtx.startRendering();
 
-  // 5. Post-Process (Bitcrush)
+  // post-processing (Bitcrush)
   if (effectType === 'bitcrush') {
     processedClip = applyMathBitcrush(processedClip, params.bits || 8, params.normFreq || 0.5);
   }
 
-  // 6. Merge Back
+  // merging back 
   const finalBuffer = new OfflineAudioContext(channels, originalBuffer.length, sampleRate).createBuffer(channels, originalBuffer.length, sampleRate);
 
   for (let c = 0; c < channels; c++) {
     const data = finalBuffer.getChannelData(c);
-    data.set(originalBuffer.getChannelData(c)); // Copy Original
-    data.set(processedClip.getChannelData(c), startFrame); // Overwrite Region
+    data.set(originalBuffer.getChannelData(c));
+    data.set(processedClip.getChannelData(c), startFrame); 
   }
 
   return finalBuffer;

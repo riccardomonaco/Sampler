@@ -36,7 +36,6 @@ class ModalSystem {
 
     document.body.appendChild(this.overlay);
     
-    // Cache references
     this.els = {
       title: this.overlay.querySelector('#modal-title'),
       msg: this.overlay.querySelector('#modal-message'),
@@ -101,7 +100,6 @@ class ModalSystem {
         this.createBtn("OK", "btn-confirm", () => this.close(this.els.input.value));
       }
 
-      // Animate In
       requestAnimationFrame(() => {
           this.overlay.classList.add('active');
           if(type === 'prompt') {

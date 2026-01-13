@@ -15,6 +15,7 @@ function createCommandsButtons() {
   const container = document.createElement("div");
   container.className = "command-buttons";
 
+  // definition of main transport buttons
   const buttons = [
     { id: "play-button", icon: "pixelart-icons-font-play" },
     { id: "pause-button", icon: "pixelart-icons-font-pause" },
@@ -26,6 +27,7 @@ function createCommandsButtons() {
     div.className = "old-button";
     div.id = btn.id;
 
+    // using SVG for the stop square, font-icons for the others
     if (btn.isStop) {
       div.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -43,7 +45,7 @@ function createCommandsButtons() {
 }
 
 /**
- * Creates static knob.
+ * Creates a physical-style knob with labels and indicators.
  */
 function createKnob(id, label) {
   const wrapper = document.createElement("div");
@@ -57,11 +59,12 @@ function createKnob(id, label) {
   const body = document.createElement("div");
   body.className = "knob-body";
   body.id = `knob-${id}`;
+  // default volume is 80% to avoid clipping on startup
   body.dataset.value = (id === 'vol') ? 0.8 : 0.0;
 
   const indicator = document.createElement("div");
   indicator.className = "knob-indicator";
-  const startDeg = (id === 'vol') ? 81 : -135;
+  const startDeg = (id === 'vol') ? 81 : -135; // mapping volume start position
   indicator.style.transform = `translate(-50%, -100%) rotate(${startDeg}deg)`;
 
   const valDisplay = document.createElement("div");
@@ -75,7 +78,7 @@ function createKnob(id, label) {
 }
 
 /**
- * Generates floppy disk effects grid.
+ * Generates the effects grid with draggable floppy disk icons.
  */
 function createFloppyDeck() {
   const wrapper = document.createElement("div");
@@ -95,7 +98,7 @@ function createFloppyDeck() {
     const img = document.createElement("img");
     img.src = `./assets/img/${fx.img}`;
     img.className = "fx-img";
-    img.draggable = true;
+    img.draggable = true; // fundamental for drag&drop logic
     img.setAttribute("data-effect", fx.id);
     img.alt = fx.alt;
 
@@ -111,6 +114,9 @@ function createFloppyDeck() {
   return wrapper;
 }
 
+/**
+ * Creates the BPM LED display.
+ */
 function createBpmSection() {
   const wrapper = document.createElement("div");
   wrapper.className = "bpm-led-wrapper";
@@ -127,6 +133,10 @@ function createBpmSection() {
 // 2. MAIN SECTIONS BUILDERS
 // ===========================================================================
 
+/**
+ * Main Sampler UI Builder.
+ * Includes Waveform, EQ Grid, and Transport controls.
+ */
 function createSampler() {
   const wrapper = document.createElement("div");
   wrapper.className = "sampler-wrapper";
@@ -144,21 +154,22 @@ function createSampler() {
   plus.innerText = "DROP A SAMPLE...";
   waveform.appendChild(plus);
 
-  // EQ Grid
+  // EQ Grid initialization
   const eqGrid = document.createElement("div");
   eqGrid.className = "eq-grid";
   eqGrid.appendChild(createEqualizer());
 
   sampler.append(waveform, eqGrid);
 
-  // Commands
+  // Commands and Transport section
   const commands = document.createElement("div");
   commands.className = "commands border-shadow";
 
-  // Commands hotbar
+  // Playback block
   const pbLabel = document.createElement("div"); pbLabel.className = "loop-label"; pbLabel.innerText = "PLAYBACK";
   const cmdBtns = createCommandsButtons();
 
+  // Loop control block
   const loopLabel = document.createElement("div");
   loopLabel.className = "loop-label";
   loopLabel.innerText = "LOOP";
@@ -166,7 +177,6 @@ function createSampler() {
   const loopBtns = document.createElement("div");
   loopBtns.className = "loop-buttons";
 
-  // Loop buttons
   const loopControls = [
     { id: "d2-button", icon: "pixelart-icons-font-prev" },
     { id: "loop-button", icon: "pixelart-icons-font-reload" },
@@ -181,7 +191,7 @@ function createSampler() {
     loopBtns.appendChild(d);
   });
 
-  // --- UTILS SECTION ---
+  // Utils block (Trim, Export, Save)
   const utilsLabel = document.createElement("div");
   utilsLabel.className = "loop-label";
   utilsLabel.innerText = "UTILS";
@@ -189,44 +199,21 @@ function createSampler() {
   const utilsBtns = document.createElement("div");
   utilsBtns.className = "rec-buttons";
 
-  /*   // 1. SNAP
-    const snapBtn = document.createElement("div");
-    snapBtn.className = "old-button";
-    snapBtn.id = "snap-btn";
-    snapBtn.title = "Snap to Grid";
-  
-    // Inseriamo l'SVG direttamente. fill="currentColor" è il segreto per farla colorare col CSS.
-    snapBtn.innerHTML = `
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display: block;">
-        <rect x="5" y="4" width="4" height="4" />
-        <rect x="5" y="10" width="4" height="5" />
-  
-        <rect x="15" y="4" width="4" height="4" />
-        <rect x="15" y="10" width="4" height="5" />
-        
-        <rect x="5" y="15" width="5" height="2" />
-        <rect x="14" y="15" width="5" height="2" />
-        
-        <rect x="7" y="17" width="10" height="2" />
-        
-        <rect x="9" y="19" width="6" height="1" />
-      </svg>
-    `; */
-
-  // 2. CUT
+  // Trim tool
   const cutBtn = document.createElement("div");
   cutBtn.className = "old-button";
   cutBtn.id = "trim-btn";
   cutBtn.title = "Trim Audio";
   cutBtn.innerHTML = '<i class="pixelart-icons-font-cut"></i>';
 
-  // 3. EXPORT (Download)
+  // WAV Export tool
   const exportBtn = document.createElement("div");
   exportBtn.className = "old-button";
   exportBtn.id = "export-btn";
   exportBtn.title = "Export to WAV";
   exportBtn.innerHTML = '<i class="pixelart-icons-font-download"></i>';
 
+  // Bank Save tool
   const saveBtn = document.createElement("div");
   saveBtn.className = "old-button";
   saveBtn.id = "save-bank-btn";
@@ -240,19 +227,22 @@ function createSampler() {
   return wrapper;
 }
 
+/**
+ * Effects section builder.
+ * Combines Floppy Deck, Control Knobs, and BPM LED.
+ */
 function createEffects() {
   const wrapper = document.createElement("div");
   wrapper.className = "effects border-shadow";
 
-  // LABEL
   const label = document.createElement("div");
   label.className = "fx-label";
   label.textContent = "EFFECTS";
 
-  // 1. FLOPPY IMAGES (Middle - Flex Grow)
+  // 1. Floppy deck for Drag&Drop effects
   const floppyDeck = createFloppyDeck();
 
-  // 2. KNOBS RACK
+  // 2. Real-time parameters Knobs (initially hidden)
   const knobsRack = document.createElement("div");
   knobsRack.className = "knobs-rack hidden";
   knobsRack.id = "knobs-rack";
@@ -261,7 +251,7 @@ function createEffects() {
   knobsRack.appendChild(createKnob("p2", "PARAM 2"));
   knobsRack.appendChild(createKnob("vol", "FX LEVEL"));
 
-  // 3. BPM (Bottom)
+  // 3. BPM monitor
   const bpmSection = createBpmSection();
 
   wrapper.append(label, floppyDeck, knobsRack, bpmSection);
@@ -269,8 +259,8 @@ function createEffects() {
 }
 
 /**
- * Creates skeleton of banks area.
- * Content will be placed by createBank.
+ * Creates the skeleton for the Soundbanks area.
+ * Populated dynamically via BankService.
  */
 function createBanksWrapper() {
   const wrapper = document.createElement("div");
@@ -288,9 +278,11 @@ function createBanksWrapper() {
   select.id = "banks";
   select.className = "banks-dropdown";
 
+  // handling bank selection and creation logic
   select.addEventListener("change", async (e) => {
     const value = e.target.value;
 
+    // show delete button only for existing banks
     if (value && value !== "__NEW_BANK__") {
       delBtn.style.display = "flex";
     } else {
@@ -321,10 +313,6 @@ function createBanksWrapper() {
     }
   });
 
-  select.addEventListener("change", (e) => {
-    createBank(e.target.value);
-  });
-
   menu.append(label, select);
 
   const content = document.createElement("div");
@@ -333,6 +321,7 @@ function createBanksWrapper() {
   const footer = document.createElement("div");
   footer.className = "banks-footer";
 
+  // bank deletion button
   const delBtn = document.createElement("div");
   delBtn.id = "delete-bank-btn";
   delBtn.className = "old-button delete-bank-btn";
@@ -349,7 +338,7 @@ function createBanksWrapper() {
       const success = await bankService.deleteBank(currentBank);
       if (success) {
         initBankMenu();
-        createBank(null); 
+        createBank(null);
         delBtn.style.display = "none";
         await Modal.show('alert', "Bank deleted successfully.");
       } else {
@@ -368,6 +357,9 @@ function createBanksWrapper() {
 // 3. LOGIC & EXPORT (Equalizer & Bank Population)
 // ===========================================================================
 
+/**
+ * Generates the vertical sliders for the Graphic EQ.
+ */
 export default function createEqualizer() {
   const slidersContainer = document.createElement('div');
   slidersContainer.id = "sliders-wrapper";
@@ -385,6 +377,7 @@ export default function createEqualizer() {
     slider.value = 0;
     slider.step = 0.1;
 
+    // quick reset to 0dB
     slider.addEventListener("dblclick", () => {
       slider.value = 0;
       slider.dispatchEvent(new Event("input"));
@@ -401,10 +394,16 @@ export default function createEqualizer() {
   return slidersContainer;
 }
 
+/**
+ * Frequency label formatting (Hz/kHz).
+ */
 function formatFreqLabel(freq) {
   return freq >= 1000 ? `${freq / 1000}kHz` : `${freq} Hz`;
 }
 
+/**
+ * Populates the bank content area with sample pads.
+ */
 export function createBank(bankName) {
   const banksContent = document.querySelector(".banks-content");
   if (!banksContent) return;
@@ -420,6 +419,7 @@ export function createBank(bankName) {
     pad.textContent = sample.name;
     pad.style.borderBottom = `4px solid ${sample.color}`;
 
+    // draggable pads to load into the player
     pad.draggable = true;
     pad.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("type", "sample");
@@ -427,13 +427,14 @@ export function createBank(bankName) {
       e.dataTransfer.effectAllowed = "copy";
     });
 
+    // small delete button for individual pads
     const delBtn = document.createElement("div");
     delBtn.className = "pad-delete-btn";
     delBtn.innerHTML = '<i class="pixelart-icons-font-trash"></i>';
     delBtn.title = "Delete Sample";
 
     delBtn.addEventListener("mousedown", (e) => {
-      e.stopPropagation();
+      e.stopPropagation(); // preventing pad selection on button press
     });
 
     delBtn.addEventListener("click", async (e) => {
@@ -448,7 +449,7 @@ export function createBank(bankName) {
 
         try {
           await bankService.deleteSample(bankName, sample);
-          createBank(bankName);
+          createBank(bankName); // re-rendering the bank
         } catch (err) {
           console.error(err);
           alert("Errore durante l'eliminazione");
@@ -461,6 +462,7 @@ export function createBank(bankName) {
     banksContent.appendChild(pad);
   });
 
+  // special '+' pad for local file upload
   const addPad = document.createElement("div");
   addPad.classList.add("sample-pad", "add-sample-pad");
   addPad.innerHTML = `<span>+</span>`;
@@ -482,7 +484,6 @@ export function createBank(bankName) {
     if (!file) return;
 
     const originalName = file.name.replace(/\.[^/.]+$/, "");
-
     let chosenName = await Modal.show('prompt', "Rename your sample:", originalName);
 
     if (chosenName === null) {
@@ -491,10 +492,9 @@ export function createBank(bankName) {
     }
 
     chosenName = chosenName.trim();
-    if (chosenName === "") {
-      chosenName = originalName;
-    }
+    if (chosenName === "") chosenName = originalName;
 
+    // UI-friendly name truncation
     let displayName = chosenName;
     if (displayName.length > 9) {
       displayName = displayName.substring(0, 9) + ".";
@@ -519,6 +519,9 @@ export function createBank(bankName) {
   banksContent.appendChild(addPad);
 }
 
+/**
+ * Synchronizes the dropdown menu with the BankService cache.
+ */
 export function initBankMenu() {
   const bankSelect = document.getElementById("banks");
   if (!bankSelect) return;
@@ -532,6 +535,7 @@ export function initBankMenu() {
   defaultOption.hidden = true;
   bankSelect.appendChild(defaultOption);
 
+  // loading banks from cache
   Object.keys(bankService.localCache).forEach((bankName) => {
     const option = document.createElement("option");
     option.value = bankName;
@@ -539,18 +543,70 @@ export function initBankMenu() {
     bankSelect.appendChild(option);
   });
 
+  // footer option for creating new banks
   const addOption = document.createElement("option");
-  addOption.value = "__NEW_BANK__"; // Valore speciale
+  addOption.value = "__NEW_BANK__";
   addOption.textContent = "+ CREATE NEW BANK";
   addOption.style.fontWeight = "bold";
   addOption.style.color = "var(--color-green)";
   bankSelect.appendChild(addOption);
 }
 
+/**
+ * creating the info section with tutorial text.
+ * handling the toggle logic for the info overlay.
+ */
+function createInfoSection() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "info-wrapper";
+
+  // creating the info button (the "i")
+  const infoBtn = document.createElement("div");
+  infoBtn.className = "info-btn";
+  infoBtn.id = "info-btn";
+  infoBtn.innerHTML = '<i class="pixelart-icons-font-info-box"></i>';
+
+  // creating the hidden content panel
+  const infoPanel = document.createElement("div");
+  infoPanel.className = "info-panel border-shadow hidden";
+  infoPanel.id = "info-panel";
+
+  infoPanel.innerHTML = `
+    <div class="info-header">QUICK TUTORIAL</div>
+    <div class="info-body">
+      <p>> Select a Sound Bank, drag 'n drop sample to load it.</p>
+      <p>> Highlight regions, drag 'n drop floppies to apply effects, use lateral curtains to define trim.</p>
+      <p>> Double click to select and loop region.</p>
+      <p>> Tap or insert BPM.</p>
+      <hr class="info-divider">
+      <div class="info-item"><i class="pixelart-icons-font-reload"></i> <span> toggle loop mode</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-prev"></i> <span> halve loop length</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-next"></i> <span> double loop length</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-cut"></i> <span> trim to curtains</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-save"></i> <span> save to current bank</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-download"></i> <span> export wav file</span></div>
+      <div class="info-item"><i class="pixelart-icons-font-trash"></i> <span> delete sample</span></div>
+
+    </div>
+  `;
+
+  // toggling visibility on click
+  infoBtn.addEventListener("click", () => {
+    infoPanel.classList.toggle("hidden");
+    infoBtn.classList.toggle("active");
+  });
+
+  wrapper.append(infoBtn, infoPanel);
+  return wrapper;
+}
+
 // ===========================================================================
 // MAIN BUILDER
 // ===========================================================================
 
+/**
+ * Main application UI entry point.
+ */
 export function createPageDefault() {
   const wrapper = document.createElement("div");
   wrapper.className = "wrapper";
@@ -558,6 +614,7 @@ export function createPageDefault() {
   wrapper.appendChild(createSampler());
   wrapper.appendChild(createEffects());
   wrapper.appendChild(createBanksWrapper());
+  wrapper.appendChild(createInfoSection());
 
   const root = document.getElementById("root") || document.body;
   root.innerHTML = "";

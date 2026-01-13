@@ -1,7 +1,7 @@
 /**
  * main.js
- * Application entry point.
- * Coordinates DOM initialization and Audio Engine startup.
+ * Entry point for the whole engine.
+ * Handling the boot sequence and audio context unlocking.
  */
 
 import { createPageDefault } from "./ui/Ui.js";
@@ -11,47 +11,47 @@ import { auth } from "./firebase.js";
 import { bankService } from "./services/BankService.js";
 import "../node_modules/pixelarticons/fonts/pixelart-icons-font.css"
 
-// Global AudioPlayer instance
 let audioPlayer;
 
-/**
+/** 
  * Initializes the application flow.
+ * Handles the async sequence: Auth -> Data -> UI -> Audio. 
  */
 async function initApp() {
 
   try {
-
-    // 1. Login Silenzioso (Indispensabile per scrivere su DB)
+    // signing in anonymously to allow firestore and storage access
     await signInAnonymously(auth);
     console.log("Logged in as:", auth.currentUser.uid);
 
-    // 2. Scarica i dati delle banche
+    // loading all banks into local cache before rendering
     await bankService.loadAll();
     console.log("Banks loaded!");
-    // 1. Build the User Interface
-    // This clears any existing DOM and builds the Sampler, Effects, and Banks.
+
+    // building the user interface and dom structure
     createPageDefault();
 
-    // 2. Initialize Audio Engine
-    // Now it can safely find DOM elements like #waveform, #knob-p1, etc.
+    // instantiating the main audio engine
     audioPlayer = new AudioPlayer();
 
-    // 3. Setup Audio Context Unlock (Browser Policy)
+    // bypassing browser autoplay policies by resuming context on user gesture
     const unlockAudio = async () => {
       if (audioPlayer) {
+        // initializing audio context and clearing the listener
         await audioPlayer.initAudio();
         console.log("Audio Context Unlocked:", audioPlayer.audioContext.state);
         window.removeEventListener("click", unlockAudio);
       }
     };
 
-    // Bind global unlock listener
+    // listening for the first click to trigger the audio startup
     window.addEventListener("click", unlockAudio);
   } catch (error) {
+    // catching boot errors and alerting the user
     console.error("Initialization failed:", error);
     alert("Errore di connessione al Database. Controlla la console.");
   }
 }
 
-// Bootstrap application on DOM Ready
+// triggering init when dom is fully loaded
 document.addEventListener("DOMContentLoaded", initApp);

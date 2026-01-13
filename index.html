@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="./public/assets/img/soundealer.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="./public/assets/img/soundealer.png"
+    />
     <link rel="stylesheet" href="styles.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Pixelify+Sans&display=swap"
@@ -23,68 +27,6 @@
     <title>SOUNDEALER</title>
   </head>
   <body>
-    <div class="wrapper">
-      <!-- SAMPLER SECTION -->
-      <div class="sampler-wrapper">
-        <div class="sampler border-shadow" id="sample-drop">
-          <!-- Waveform -->
-          <div id="waveform">
-            <div class="plus-wrapper" id="plus-wrapper">DROP A SAMPLE...</div>
-          </div>
-
-          <!-- Equalizer -->
-          <div class="eq-grid">
-            <div class="sliders-wrapper" id="sliders-wrapper">
-              <!-- Sliders generati dinamicamente -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Commands -->
-        <div class="commands border-shadow">
-          <div class="loop-label">PLAYBACK</div>
-          <div class="command-buttons">
-            <div class="old-button" id="play-button">▶︎</div>
-            <div class="old-button" id="pause-button">||</div>
-            <div class="old-button" id="stop-button">◼</div>
-          </div>
-          <div class="loop-label">LOOP</div>
-          <div class="loop-buttons">
-            <div class="old-button" id="d2-button">◀</div>
-            <div class="old-button" id="loop-button">↻</div>
-            <div class="old-button" id="x2-button">▶</div>
-          </div>
-          <div class="loop-label">REC</div>
-          <div class="rec-buttons">
-            <div class="old-button" id="d2-button">⦿</div>
-          </div>
-          <div class="rec-buttons">
-            <div class="old-button" id="trim-btn">✂</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- EFFECTS SECTION -->
-      <div class="effects border-shadow">
-        <div class="fx-label">EFFECTS</div>
-        <div class="fx-buttons-wrapper">
-          <div class="fx-buttons"></div>
-        </div>
-        <div class="bpm-led-wrapper">
-          <div class="bpm-led" id="bpm-led">tap BPM</div>
-        </div>
-      </div>
-
-      <!-- SOUND BANKS SECTION -->
-      <div class="banks border-shadow">
-        <div class="banks-menu">
-          <div class="banks-label">CHOOSE A SOUNDBANK</div>
-          <select name="banks" id="banks" class="banks-dropdown"></select>
-        </div>
-        <div class="banks-content"></div>
-      </div>
-    </div>
-
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

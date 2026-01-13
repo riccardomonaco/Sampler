@@ -20,6 +20,7 @@ import { bankService } from "../services/BankService.js";
 export default class AudioPlayer {
   constructor() {
     // Audio Context Setup
+    // Using a fixed sampleRate to ensure consistency across different hardware
     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
       latencyHint: 'interactive',
       sampleRate: 44100
@@ -39,8 +40,9 @@ export default class AudioPlayer {
     this.zoomLevel = 0;
 
     // Audio Node State
+    // routing path: MediaSource -> FX Node -> EQ -> MasterGain -> Destination
     this.filters = [];
-    this.eqInputNode = null;       // EQ Chain Entry Point
+    this.eqInputNode = null;       // EQ Chain Entry Point (Summing bus)
     this.previewEffectNode = null; // Node for live Distortion/Bitcrush
     this.delayNode = null;         // Node for live Delay
     this.feedbackNode = null;      // Node for live Delay Feedback
@@ -58,6 +60,7 @@ export default class AudioPlayer {
     this.quantizeVal = 4;
 
     // History State
+    // Planned for future undo/redo implementation
     this.history = [];
     this.redoStack = [];
     this.maxHistory = 10;
@@ -89,7 +92,7 @@ export default class AudioPlayer {
    * Initializes or recreates the WaveSurfer instance and Regions plugin.
    */
   initWaveSurfer() {
-    // checking if wavesurfer already exists
+    // checking if wavesurfer already exists to prevent multiple instances
     if (this.wavesurfer) {
       this.wavesurfer.destroy();
       this.wavesurfer = null;
@@ -124,6 +127,7 @@ export default class AudioPlayer {
     container.addEventListener("wheel", (e) => {
       if (this.wavesurfer) {
         e.preventDefault();
+        // handling zoom sensitivity and boundaries
         const delta = e.deltaY > 0 ? -50 : 50;
         let currentZoom = this.wavesurfer.options.minPxPerSec || 50;
         let newZoom = Math.max(20, Math.min(currentZoom + delta, 1000));
@@ -140,6 +144,7 @@ export default class AudioPlayer {
       const buffer = this.wavesurfer.getDecodedData();
       if (buffer) {
         this.originalBuffer = buffer;
+        // waiting for next frame to ensure UI nodes are ready
         requestAnimationFrame(() => this.initEqualizer());
         requestAnimationFrame(() => this.setupKnobListeners());
       }
@@ -150,6 +155,7 @@ export default class AudioPlayer {
       this.createTrimUI();
       await this.detectBPM();
 
+      // UI cleanup after load
       const plusWrapper = document.getElementById("plus-wrapper");
       if (plusWrapper) plusWrapper.remove();
 
@@ -160,6 +166,7 @@ export default class AudioPlayer {
     this.wavesurfer.on("click", () => this.clearLoop());
 
     this.wavesurfer.on("finish", () => {
+      // handle global loop if no specific region is selected
       if (this.isLooping && !this.currentRegion) {
         this.wavesurfer.play();
       }
@@ -187,6 +194,7 @@ export default class AudioPlayer {
     });
 
     this.regions.on("region-out", (region) => {
+      // implementing region-specific looping
       if (this.isLooping && this.currentRegion === region) {
         region.play();
       }
@@ -205,6 +213,7 @@ export default class AudioPlayer {
    */
   initAudio() {
     if (!this.audioContext) this.audioContext = new AudioContext();
+    // browser policy requires user interaction to resume audio context
     if (this.audioContext.state === "suspended") return this.audioContext.resume();
     this.initEqualizer();
     return Promise.resolve();
@@ -228,6 +237,7 @@ export default class AudioPlayer {
    * @param {AudioBuffer} buffer 
    */
   async reloadWithBuffer(buffer) {
+    // converting AudioBuffer to Wav Blob to reload WaveSurfer correctly
     const blob = bufferToWave(buffer, buffer.length);
     const url = URL.createObjectURL(blob);
 
@@ -257,6 +267,7 @@ export default class AudioPlayer {
   handleRegionCreated(region) {
     const regionElement = region.element;
 
+    // creating custom delete button for the region overlay
     const deleteBtn = document.createElement('div');
     deleteBtn.className = 'region-close-btn';
     deleteBtn.textContent = 'x';
@@ -337,6 +348,7 @@ export default class AudioPlayer {
 
       const effectType = e.dataTransfer.getData("effectType");
       if (effectType) {
+        // visual feedback for drop action
         const originalColor = region.color;
         element.style.backgroundColor = "color-mix(in srgb, var(--lgrey) 30%, transparent)";
         setTimeout(() => { if (element) element.style.backgroundColor = originalColor; }, 300);
@@ -356,6 +368,7 @@ export default class AudioPlayer {
   }
 
   setCurrentRegion(region) {
+    // resetting previous region style
     if (this.currentRegion) {
       this.currentRegion.setOptions({ color: "rgba(255, 255, 255, 0.1)" });
       if (this.currentRegion.element) {
@@ -391,21 +404,25 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-     * Rebuilds the audio node graph including Master Gain.
-     * Path: Source -> [Effects] -> EQ -> MasterGain -> Destination.
-     */
+   * Rebuilds the audio node graph including Master Gain.
+   * Path: Source -> [Effects] -> EQ -> MasterGain -> Destination.
+   */
   initEqualizer() {
     const audio = this.wavesurfer.getMediaElement();
     if (!audio) return;
     audio.crossOrigin = "anonymous";
 
+    // master gain node creation (singleton pattern)
     if (!this.masterGainNode) {
       this.masterGainNode = this.audioContext.createGain();
       this.masterGainNode.gain.value = 0.8;
     }
+    
+    // creating nodes only if they don't exist
     if (!this.mediaNode) this.mediaNode = this.audioContext.createMediaElementSource(audio);
-    if (!this.eqInputNode) this.eqInputNode = this.audioContext.createGain(); // PUNTO DI SOMMA
+    if (!this.eqInputNode) this.eqInputNode = this.audioContext.createGain(); // SUMMING POINT
 
+    // creating filter bank based on eqBands constants
     if (this.filters.length === 0) {
       this.filters = eqBands.map((band) => {
         const f = this.audioContext.createBiquadFilter();
@@ -416,7 +433,7 @@ export default class AudioPlayer {
       this.connectSliders();
     }
 
-    // disconnecting everything
+    // disconnecting everything before rebuilding the graph to avoid leaks and noise
     try { this.mediaNode.disconnect(); } catch (e) { }
     try { this.eqInputNode.disconnect(); } catch (e) { }
     try { if (this.previewEffectNode) this.previewEffectNode.disconnect(); } catch (e) { }
@@ -426,40 +443,42 @@ export default class AudioPlayer {
     this.filters.forEach(f => { try { f.disconnect(); } catch (e) { } });
     this.masterGainNode.disconnect();
 
-    // routing
+    // routing logic: injecting effects into the chain dynamically
     if ((this.currentEffectType === 'distortion' || this.currentEffectType === 'bitcrush') && this.previewEffectNode) {
       this.mediaNode.connect(this.previewEffectNode);
       this.previewEffectNode.connect(this.eqInputNode);
     }
     else if (this.currentEffectType === 'delay' && this.delayNode) {
-      // dry
+      // dry signal
       this.mediaNode.connect(this.eqInputNode);
-      // wet
+      // wet signal (parallel processing)
       this.mediaNode.connect(this.delayNode);
       this.delayNode.connect(this.feedbackNode);
       this.feedbackNode.connect(this.delayNode);
       this.delayNode.connect(this.eqInputNode);
     }
     else {
-      // cleaning
+      // clean signal path
       this.mediaNode.connect(this.eqInputNode);
     }
 
     let chainStart = this.eqInputNode;
 
-    // putting fx volume after everythings if there's an effect
+    // insert preview gain node if an effect is active to manage volume spikes
     if (this.currentEffectType && this.previewGainNode) {
       this.eqInputNode.disconnect();
       this.eqInputNode.connect(this.previewGainNode);
       chainStart = this.previewGainNode;
     }
 
+    // serializing filters in the chain
     let currentNode = chainStart;
     this.filters.forEach((filter) => {
       currentNode.connect(filter);
       currentNode = filter;
     });
 
+    // final master out
     currentNode.connect(this.masterGainNode);
     this.masterGainNode.connect(this.audioContext.destination);
 
@@ -491,6 +510,7 @@ export default class AudioPlayer {
   async applyDirectEffect(region, type) {
     if (!this.originalBuffer) return;
     try {
+      // destructive processing on a specific time range
       const newBuffer = await processRange(
         this.originalBuffer,
         this.audioContext,
@@ -511,24 +531,23 @@ export default class AudioPlayer {
     this.activeRegion = region;
     this.currentEffectType = type;
 
-    // showing controls
+    // showing control rack
     const knobsRack = document.getElementById("knobs-rack");
-    console.log("ciao");
     if (knobsRack) knobsRack.classList.remove("hidden");
 
-    // creating preview (before eventual freezing) node
+    // creating preview gain node for real-time adjustments
     this.previewGainNode = this.audioContext.createGain();
     const startVol = 0.8;
     this.previewGainNode.gain.value = startVol;
     this.effectParams.volume = startVol;
 
-    // updating knobs visuals
+    // updating knobs visuals and value labels
     const volKnob = document.getElementById('knob-vol');
     if (volKnob) this.updateKnobVisual(volKnob, startVol);
     const volVal = document.getElementById('val-vol');
     if (volVal) volVal.innerText = "80%";
 
-    // steupping specific effects
+    // setting up specific effect nodes and initial parameters
     let def1 = 0.5, def2 = 0.5;
 
     if (type === 'distortion') {
@@ -557,6 +576,7 @@ export default class AudioPlayer {
       this.effectParams.bits = 8;
       this.effectParams.normFreq = 0.1;
       def1 = 8 / 16; def2 = 0.1;
+      // Using ScriptProcessor for custom bitcrushing math (non-native node)
       const bs = 4096;
       this.previewEffectNode = this.audioContext.createScriptProcessor(bs, 1, 1);
       this.previewEffectNode.onaudioprocess = (e) => {
@@ -579,7 +599,7 @@ export default class AudioPlayer {
       document.getElementById('val-p2').innerText = "--";
     }
 
-    // creating apply button
+    // creating apply button overlay for the region
     const applyBtn = document.createElement('div');
     applyBtn.className = 'region-apply-btn';
     applyBtn.innerText = "APPLY";
@@ -611,7 +631,7 @@ export default class AudioPlayer {
     region.element.appendChild(applyBtn);
     this.currentApplyBtn = applyBtn;
 
-    // resetting and restarting the eventual loop
+    // re-triggering the graph and playback
     this.eqInitialized = false;
     this.initEqualizer();
     if (!this.isLooping) {
@@ -679,6 +699,7 @@ export default class AudioPlayer {
     title.style.margin = "0 0 10px 0";
     container.appendChild(title);
 
+    // dynamic sliders based on effect type
     if (type === 'distortion') {
       container.appendChild(this.createSlider("Drive", 0, 400, 1, this.effectParams.amount, (val) => {
         this.effectParams.amount = val;
@@ -730,6 +751,7 @@ export default class AudioPlayer {
   async freezeCurrentEffect() {
     if (!this.activeRegion) return;
     try {
+      // Offline processing to bake effect into a new buffer
       const newBuffer = await processRange(
         this.originalBuffer,
         this.audioContext,
@@ -739,16 +761,15 @@ export default class AudioPlayer {
         this.effectParams
       );
 
-      // applying volume to buffer
+      // applying local gain (volume) directly to the samples in the AudioBuffer
       if (newBuffer && this.effectParams.volume !== undefined) {
         const vol = this.effectParams.volume;
-        // calculating indexes
         const startSample = Math.floor(this.activeRegion.start * newBuffer.sampleRate);
         const endSample = Math.floor(this.activeRegion.end * newBuffer.sampleRate);
 
         for (let channel = 0; channel < newBuffer.numberOfChannels; channel++) {
           const data = newBuffer.getChannelData(channel);
-          // affecting only samples into the selected region 
+          // iterating over the region window
           for (let i = startSample; i < endSample && i < data.length; i++) {
             data[i] = data[i] * vol;
           }
@@ -766,19 +787,19 @@ export default class AudioPlayer {
    * Closes effect UI and resets the audio graph to Clean state.
    */
   closeEffectPanel() {
-    // hiding the knobs
+    // hiding the knobs rack
     const knobsRack = document.getElementById("knobs-rack");
     if (knobsRack) {
-      knobsRack.classList.add("hidden"); // <--- Questo fa sparire i knob
+      knobsRack.classList.add("hidden"); 
     }
 
-    // removing apply button
+    // cleaning up UI elements
     if (this.currentApplyBtn) {
       this.currentApplyBtn.remove();
       this.currentApplyBtn = null;
     }
 
-    // resetting audio variables
+    // clearing references to preview nodes to allow garbage collection
     this.previewEffectNode = null;
     this.delayNode = null;
     this.feedbackNode = null;
@@ -786,26 +807,26 @@ export default class AudioPlayer {
     this.activeRegion = null;
     this.currentEffectType = null;
 
-    // resetting knob labels
+    // resetting knob labels for next use
     const l1 = document.getElementById('label-p1'); if (l1) l1.innerText = "PARAM 1";
     const l2 = document.getElementById('label-p2'); if (l2) l2.innerText = "PARAM 2";
 
-    // reseting and reinitializing the equalizer
+    // rebuilding clean audio graph
     this.eqInitialized = false;
     this.initEqualizer();
   }
 
   /**
-   * Sets up listeners for the 3 knobs 
+   * Sets up listeners for the 3 physical-style knobs 
    */
   setupKnobListeners() {
-    // creating freeze button
+    // binding freeze button logic
     const freezeBtn = document.getElementById("freeze-btn");
     if (freezeBtn) {
       freezeBtn.addEventListener("click", () => this.freezeCurrentEffect());
     }
 
-    // dragging knob logic
+    // dragging knob logic: converting vertical movement to 0.0-1.0 value
     const setupDrag = (knobId, onInput) => {
       const knob = document.getElementById(`knob-${knobId}`);
       if (!knob) return;
@@ -814,7 +835,7 @@ export default class AudioPlayer {
       let startVal = 0;
 
       const onMouseMove = (e) => {
-        const delta = startY - e.clientY; // Up = positive
+        const delta = startY - e.clientY; // Up = positive increment
         const sensitivity = 0.005;
         let newVal = startVal + (delta * sensitivity);
         newVal = Math.max(0, Math.min(1, newVal)); // Clamp 0-1
@@ -839,20 +860,19 @@ export default class AudioPlayer {
       });
     };
 
-    // linking p1 to param1
+    // binding physical knobs to virtual parameters
     setupDrag('p1', (val) => {
       if (!this.currentEffectType) return;
       this.updateEffectParam(1, val);
     });
 
-    // linking p2 to param2
     setupDrag('p2', (val) => {
       if (!this.currentEffectType) return;
       this.updateEffectParam(2, val);
     });
 
-    // linking vol to preview node gain
     setupDrag('vol', (val) => {
+      // dual function: control preview volume or master volume
       if (this.currentEffectType) {
         if (this.previewGainNode) this.previewGainNode.gain.value = val;
         this.effectParams.volume = val;
@@ -866,8 +886,8 @@ export default class AudioPlayer {
   }
 
   /**
-   * Updates the rotation of the visual knob
-   * Maps 0.0-1.0 to -135deg to +135deg.
+   * Updates the rotation of the visual knob indicator.
+   * Maps 0.0-1.0 to -135deg to +135deg range.
    */
   updateKnobVisual(knobElement, normalizedValue) {
     knobElement.dataset.value = normalizedValue;
@@ -879,13 +899,13 @@ export default class AudioPlayer {
   }
 
   /**
-   * Translates normalized knob values (0-1) to AudioParams
+   * Translates normalized knob values (0-1) to specific Effect AudioParams.
    */
   updateEffectParam(knobIndex, normalizedValue) {
     const type = this.currentEffectType;
 
     if (type === 'distortion') {
-      // drive (0 - 400)
+      // drive amount (0 - 400 curve intensity)
       if (knobIndex === 1) {
         const val = normalizedValue * 400;
         this.effectParams.amount = val;
@@ -894,14 +914,14 @@ export default class AudioPlayer {
       }
     }
     else if (type === 'delay') {
-      // time (0.01 - 1.0s)
+      // delay time (0.01 - 1.0s window)
       if (knobIndex === 1) {
         const val = 0.01 + (normalizedValue * 0.99);
         this.effectParams.time = val;
         document.getElementById('val-p1').innerText = val.toFixed(2) + "s";
         if (this.delayNode) this.delayNode.delayTime.linearRampToValueAtTime(val, this.audioContext.currentTime + 0.1);
       }
-      // feedback (0 - 0.9)
+      // gain feedback (0 - 0.9 to avoid infinite oscillation)
       if (knobIndex === 2) {
         const val = normalizedValue * 0.9;
         this.effectParams.feedback = val;
@@ -910,13 +930,13 @@ export default class AudioPlayer {
       }
     }
     else if (type === 'bitcrush') {
-      // bits (1 = LoFi, 16 = HiFi)
+      // bit depth reduction (1 = LoFi noise, 16 = HiFi clean)
       if (knobIndex === 1) {
         const val = 1 + Math.floor(normalizedValue * 15);
         this.effectParams.bits = val;
         document.getElementById('val-p1').innerText = val + "bit";
       }
-      // freq (0.01 - 1.0)
+      // sample rate reduction factor
       if (knobIndex === 2) {
         const val = 0.01 + (normalizedValue * 0.99);
         this.effectParams.normFreq = val;
@@ -930,14 +950,15 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Creates curtains handles to trim the whole sample
-   * Adds a ghost region on the whole waveform linked to handles position
+   * Creates curtains handles to trim the whole sample.
+   * Adds a ghost region on the whole waveform linked to handles position.
    */
   initTrimCurtains() {
     const duration = this.wavesurfer.getDuration();
     const shadowColor = "rgba(0, 0, 0, 0.65)";
     const handleColor = "var(--color-red)";
 
+    // cleaning up existing system regions
     this.regions.getRegions().forEach(r => {
       if (r.id === "left-curtain" || r.id === "right-curtain") r.remove();
     });
@@ -956,7 +977,7 @@ export default class AudioPlayer {
   }
 
   /**
-   * Creates the aspect of the trimming handles
+   * Creates the aspect of the trimming handles and overlays.
    */
   createTrimUI() {
     const container = document.getElementById("waveform");
@@ -988,9 +1009,9 @@ export default class AudioPlayer {
   }
 
   /**
-   * Manages the dragging event on the handles to update UI and region boundaries
-   * @param {*} element 
-   * @param {*} type 
+   * Manages the dragging event on the handles to update UI and region boundaries.
+   * @param {HTMLElement} element 
+   * @param {string} type 
    */
   enableDrag(element, type) {
     let isDragging = false;
@@ -1007,6 +1028,7 @@ export default class AudioPlayer {
 
       const rect = this.trimUI.container.getBoundingClientRect();
       let x = e.clientX - rect.left;
+      // boundary clamping
       if (x < 0) x = 0;
       if (x > rect.width) x = rect.width;
 
@@ -1014,12 +1036,12 @@ export default class AudioPlayer {
 
       if (type === 'left') {
         const rightPos = parseFloat(this.trimUI.rightHandle.style.left) || 100;
-        if (percentage >= rightPos - 2) return;
+        if (percentage >= rightPos - 2) return; // safety margin
         element.style.left = percentage + '%';
         this.trimUI.leftOverlay.style.width = percentage + '%';
       } else {
         const leftPos = parseFloat(this.trimUI.leftHandle.style.left) || 0;
-        if (percentage <= leftPos + 2) return;
+        if (percentage <= leftPos + 2) return; // safety margin
         element.style.left = percentage + '%';
         this.trimUI.rightOverlay.style.width = (100 - percentage) + '%';
       }
@@ -1034,29 +1056,27 @@ export default class AudioPlayer {
   }
 
   /**
-   * Trims audio getting indexes from handles
-   * Reloads it into wavesurfer
-   * Recreates trimming UI
-   * @returns 
+   * Trims audio getting indexes from handles.
+   * Reloads it into wavesurfer and recreates trimming UI.
    */
   async trimAudio() {
     if (!this.originalBuffer || !this.trimUI) return;
 
     let startVal = parseFloat(this.trimUI.leftHandle.style.left) || 0;
-
     let endVal = parseFloat(this.trimUI.rightHandle.style.left);
     if (isNaN(endVal)) endVal = 100;
 
-    // converting to 0.0 - 1.0
+    // converting percentage to 0.0 - 1.0 ratio
     let startRatio = startVal / 100;
     let endRatio = endVal / 100;
 
+    // preventing small rounding errors
     const tolerance = 0.001;
     if (startRatio < tolerance) startRatio = 0;
     if (endRatio > (1 - tolerance)) endRatio = 1;
 
     if (startRatio >= endRatio) return;
-    // checking if handles were not moved
+    // exit if no actual change was made
     if (startRatio === 0 && endRatio === 1) return;
 
     const startFrame = Math.floor(startRatio * this.originalBuffer.length);
@@ -1064,6 +1084,7 @@ export default class AudioPlayer {
 
     if (endFrame - startFrame <= 0) return;
 
+    // creating sub-buffer from the original data
     const trimmedBuffer = sliceBuffer(
       this.originalBuffer,
       startRatio,
@@ -1083,14 +1104,14 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Initializes beat detection "component"
-   * Using the library BeatDetect.js
+   * Initializes beat detection "component" using BeatDetect.js library.
    */
   initBeatDetect() {
     this.lockTimer = null;
     this.lastTapTime = 0;
     const bpmLed = document.getElementById("bpm-led");
 
+    // mapping tap events to bpm calculation
     this.beatDetect.tapBpm({
       element: bpmLed,
       precision: 4,
@@ -1101,6 +1122,7 @@ export default class AudioPlayer {
           this.lockTimer = null;
         }
 
+        // resetting logic if tap frequency is too low
         if (now - this.lastTapTime <= 2000) {
           bpmLed.classList.remove("bpm-led-locked");
           this.bpm = Math.round(bpm);
@@ -1113,7 +1135,7 @@ export default class AudioPlayer {
   }
 
   /**
-   * Detects BPM using the library BeatDetect.js
+   * Automatically detects BPM from current audio URL.
    */
   async detectBPM() {
     this.beatDetect.getBeatInfo({ url: this.currentAudioURL })
@@ -1121,18 +1143,16 @@ export default class AudioPlayer {
         this.bpm = Math.round(info.bpm);
         document.getElementById("bpm-led").textContent = this.bpm + " BPM";
       })
-      .catch((error) => { /* Handle error silently */ });
+      .catch((error) => { /* Silently failing as BPM is not critical */ });
   }
 
   /**
-   * Creates the input field to manually insert BPM value
-   * @returns 
+   * Creates the input field to manually insert BPM value on right click.
    */
   setupBpmInput() {
     const bpmLed = document.getElementById("bpm-led");
     if (!bpmLed) return;
 
-    // checking if right mouse click
     bpmLed.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1170,9 +1190,10 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Adds all the event listeners on the various components
+   * Adds all the event listeners on the various components.
    */
   setupEventListeners() {
+    // Playback controls
     document.getElementById("play-button").addEventListener("click", () => this.wavesurfer.play());
     document.getElementById("pause-button").addEventListener("click", () => this.wavesurfer.pause());
     document.getElementById("stop-button").addEventListener("click", () => {
@@ -1185,25 +1206,31 @@ export default class AudioPlayer {
       document.getElementById("loop-button").classList.toggle("old-button-loop");
     });
 
+    // Region transformation shortcuts (x2 duration)
     document.getElementById("x2-button").addEventListener("click", () => {
       if (this.isLooping && this.currentRegion) {
+        const start = this.currentRegion.start;
+        const newEnd = start + (this.currentRegion.end - start) * 2;
         this.regions.clearRegions();
         this.regions.addRegion({
-          start: this.currentRegion.start,
-          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) * 2,
+          start: start,
+          end: newEnd,
           loop: true, color: "rgba(165, 165, 165, 0.1)",
           handleStyle: { left: "rgba(0, 150, 255, 0.9)", right: "rgba(0, 150, 255, 0.9)" },
         });
       }
     });
 
+    // Region transformation shortcuts (1/2 duration)
     document.getElementById("d2-button").addEventListener("click", () => {
       if (this.isLooping && this.currentRegion) {
         this.wavesurfer.seekTo(this.currentRegion.start);
+        const start = this.currentRegion.start;
+        const newEnd = start + (this.currentRegion.end - start) / 2;
         this.regions.clearRegions();
         this.regions.addRegion({
-          start: this.currentRegion.start,
-          end: this.currentRegion.start + (this.currentRegion.end - this.currentRegion.start) / 2,
+          start: start,
+          end: newEnd,
           loop: true, color: "rgba(165, 165, 165, 0.3)",
           handleStyle: { left: "rgba(0, 150, 255, 0.9)", right: "rgba(0, 150, 255, 0.9)" },
         });
@@ -1212,41 +1239,39 @@ export default class AudioPlayer {
 
     document.getElementById('trim-btn').addEventListener('click', () => this.trimAudio());
 
+    // Keyboard shortcuts
     document.addEventListener("keydown", (e) => {
       if (e.key.toLowerCase() === " ") this.wavesurfer.playPause();
+      // Future-proofing for Undo/Redo logic
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
-        this.undo();
+        // this.undo(); 
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
         e.preventDefault();
-        this.redo();
+        // this.redo();
       }
     });
 
+    // Export handler
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
         this.exportAudio();
-
         const originalColor = exportBtn.style.color;
         exportBtn.style.color = "var(--lgrey)";
-        setTimeout(() => {
-          exportBtn.style.color = "";
-        }, 200);
+        setTimeout(() => { exportBtn.style.color = ""; }, 200);
       });
     }
 
+    // Soundbank save handler
     const saveBankBtn = document.getElementById('save-bank-btn');
     if (saveBankBtn) {
       saveBankBtn.addEventListener('click', () => {
         this.saveToCurrentBank();
-
         const originalColor = saveBankBtn.style.color;
         saveBankBtn.style.color = "var(--color-green)";
-        setTimeout(() => {
-          saveBankBtn.style.color = "";
-        }, 300);
+        setTimeout(() => { saveBankBtn.style.color = ""; }, 300);
       });
     }
 
@@ -1255,8 +1280,8 @@ export default class AudioPlayer {
   }
 
   /**
-   * Allows the waveform area to be dragged and dropped on
-   * Distinguishes between audio files and effects
+   * Allows the waveform area to be dragged and dropped on.
+   * Distinguishes between audio files and effects.
    */
   setupGlobalDragDrop() {
     const dropArea = document.getElementById("waveform");
@@ -1264,6 +1289,7 @@ export default class AudioPlayer {
     dropArea.addEventListener("dragover", (e) => {
       e.preventDefault();
       const types = e.dataTransfer.types;
+      // if dragging an effect icon, we let the region handle the drop
       if (types.includes("effecttype") || types.includes("effectType")) return;
       dropArea.classList.add("dragover");
     });
@@ -1275,11 +1301,12 @@ export default class AudioPlayer {
       dropArea.classList.remove("dragover");
 
       const effectType = e.dataTransfer.getData("effectType");
-      if (effectType) return;
+      if (effectType) return; // handled by region listeners
 
       const type = e.dataTransfer.getData("type");
       const url = e.dataTransfer.getData("audioUrl");
 
+      // handling local file drops or soundbank sample drops
       if (type === "sample" && url) {
         this.wavesurfer.load(url);
         this.currentAudioURL = url;
@@ -1293,6 +1320,7 @@ export default class AudioPlayer {
       }
     });
 
+    // initiating drag from effect icons
     document.addEventListener('dragstart', (e) => {
       const targetIcon = e.target.closest ? e.target.closest('.fx-img') : null;
       if (targetIcon) {
@@ -1310,27 +1338,27 @@ export default class AudioPlayer {
   // ===========================================================================
 
   /**
-   * Generates Blob obj applying effects, eq and volume, ready
-   * to be loaded or downloaded
+   * Generates Blob obj applying effects, eq and volume.
+   * WYSIWYG (What You See Is What You Get) rendering.
    */
   async getProcessedWavBlob() {
     if (!this.originalBuffer) return null;
 
-    // 1. Setup Offline Context (Mixer Virtuale)
+    // creating offline context for high-speed non-realtime rendering
     const offlineCtx = new OfflineAudioContext(
       this.originalBuffer.numberOfChannels,
       this.originalBuffer.length,
       this.originalBuffer.sampleRate
     );
 
-    // 2. Sorgente
+    // reconstructing the identical processing chain in the offline context
     const source = offlineCtx.createBufferSource();
     source.buffer = this.originalBuffer;
 
-    // 3. Ricostruzione Catena EQ + Volume
     let currentNode = source;
     const currentGains = this.filters.map(f => f.gain.value);
 
+    // applying EQ settings
     eqBands.forEach((band, i) => {
       const filter = offlineCtx.createBiquadFilter();
       filter.type = band <= 32 ? "lowshelf" : band >= 16000 ? "highshelf" : "peaking";
@@ -1340,7 +1368,7 @@ export default class AudioPlayer {
       currentNode = filter;
     });
 
-    // 4. Master Volume
+    // applying master volume
     if (this.masterGainNode) {
       const masterGain = offlineCtx.createGain();
       masterGain.gain.value = this.masterGainNode.gain.value;
@@ -1348,18 +1376,18 @@ export default class AudioPlayer {
       currentNode = masterGain;
     }
 
-    // 5. Render
+    // start the rendering process
     currentNode.connect(offlineCtx.destination);
     source.start(0);
     const renderedBuffer = await offlineCtx.startRendering();
 
-    // 6. Conversione in WAV Blob
+    // final conversion to binary WAV format
     return bufferToWave(renderedBuffer, renderedBuffer.length);
   }
 
   /**
-     * Export the current buffer applying EQ and Master Volume (WYSIWYG).
-     */
+   * Export the current buffer applying EQ and Master Volume.
+   */
   async exportAudio() {
     const blob = await this.getProcessedWavBlob();
     if (!blob) return;
@@ -1370,8 +1398,9 @@ export default class AudioPlayer {
     a.href = url;
     let defaultName = "My_wild_sample001";
     let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
-    a.download = sampleName;
+    
     if (sampleName) {
+      a.download = sampleName.endsWith(".wav") ? sampleName : sampleName + ".wav";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1381,8 +1410,7 @@ export default class AudioPlayer {
 
 
   /**
-   * Saves the current sample and adds it to the current bank (Cloud and locally)
-   * @returns 
+   * Saves the current sample and adds it to the current bank (Cloud and locally).
    */
   async saveToCurrentBank() {
     const bankSelect = document.getElementById("banks");
@@ -1404,18 +1432,19 @@ export default class AudioPlayer {
 
     try {
       const wavBlob = await this.getProcessedWavBlob();
-
       let defaultName = "Rename your sample";
 
       let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
       if (!sampleName) throw new Error("Salvataggio annullato");
 
+      // assigning a random color for the soundbank UI entry
       const colors = ["var(--color-red)", "var(--color-ambra)", "var(--color-green)", "var(--color-blu)"];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
+      // uploading to Firebase via BankService
       await bankService.addSample(currentBank, sampleName, wavBlob, randomColor);
 
-      createBank(currentBank);
+      createBank(currentBank); // refreshing UI
       await Modal.show('alert', "Sample salvato nella bank!");
 
     } catch (error) {
