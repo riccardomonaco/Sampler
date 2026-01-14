@@ -39,6 +39,7 @@ async function initApp() {
       if (audioPlayer) {
         // initializing audio context and clearing the listener
         await audioPlayer.initAudio();
+        audioPlayer.drawMeter();
         console.log("Audio Context Unlocked:", audioPlayer.audioContext.state);
         window.removeEventListener("click", unlockAudio);
       }

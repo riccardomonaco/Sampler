@@ -223,7 +223,20 @@ function createSampler() {
   utilsBtns.append(cutBtn, saveBtn, exportBtn);
 
   commands.append(pbLabel, cmdBtns, loopLabel, loopBtns, utilsLabel, utilsBtns);
+
+  const master = document.createElement("div");
+  master.className = "master-strip border-shadow";
+  master.innerHTML = `
+  <div class="master-label">MASTER OUT</div>
+  <div class="meter-container">
+    <div id="meter-fill" class="meter-fill"></div>
+  </div>
+  <input type="range" id="master-vol-fader" class="master-fader" min="0" max="1.5" step="0.01" value="0.8">
+`;
+
   wrapper.append(sampler, commands);
+  wrapper.append(master);
+
   return wrapper;
 }
 

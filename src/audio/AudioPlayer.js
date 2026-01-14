@@ -417,7 +417,17 @@ export default class AudioPlayer {
       this.masterGainNode = this.audioContext.createGain();
       this.masterGainNode.gain.value = 0.8;
     }
-    
+
+    // creating master analyzer
+    if (!this.analyser) {
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.analyser.minDecibels = -90;
+      this.analyser.maxDecibels = -10;
+    }
+    // connecting master gain to analyzer
+    this.masterGainNode.connect(this.analyser);
+
     // creating nodes only if they don't exist
     if (!this.mediaNode) this.mediaNode = this.audioContext.createMediaElementSource(audio);
     if (!this.eqInputNode) this.eqInputNode = this.audioContext.createGain(); // SUMMING POINT
@@ -481,6 +491,8 @@ export default class AudioPlayer {
     // final master out
     currentNode.connect(this.masterGainNode);
     this.masterGainNode.connect(this.audioContext.destination);
+
+    this.masterGainNode.connect(this.analyser);
 
     this.eqInitialized = true;
   }
@@ -790,7 +802,7 @@ export default class AudioPlayer {
     // hiding the knobs rack
     const knobsRack = document.getElementById("knobs-rack");
     if (knobsRack) {
-      knobsRack.classList.add("hidden"); 
+      knobsRack.classList.add("hidden");
     }
 
     // cleaning up UI elements
@@ -1331,6 +1343,21 @@ export default class AudioPlayer {
         }
       }
     });
+
+    const masterFader = document.getElementById("master-vol-fader");
+    if (masterFader) {
+      masterFader.addEventListener("input", (e) => {
+        const val = parseFloat(e.target.value);
+
+        // applying gain to master node
+        if (this.masterGainNode) {
+
+          this.masterGainNode.gain.setTargetAtTime(val, this.audioContext.currentTime, 0.01);
+        }
+
+        console.log("Master Volume:", val);
+      });
+    }
   }
 
   // ===========================================================================
@@ -1381,6 +1408,23 @@ export default class AudioPlayer {
     source.start(0);
     const renderedBuffer = await offlineCtx.startRendering();
 
+    // normalizing
+    let maxPeak = 0;
+    for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
+      const data = renderedBuffer.getChannelData(c);
+      for (let i = 0; i < data.length; i++) {
+        if (Math.abs(data[i]) > maxPeak) maxPeak = Math.abs(data[i]);
+      }
+    }
+
+    if (maxPeak > 0) {
+      const normFactor = 0.98 / maxPeak;
+      for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
+        const data = renderedBuffer.getChannelData(c);
+        for (let i = 0; i < data.length; i++) data[i] *= normFactor;
+      }
+    }
+
     // final conversion to binary WAV format
     return bufferToWave(renderedBuffer, renderedBuffer.length);
   }
@@ -1398,7 +1442,7 @@ export default class AudioPlayer {
     a.href = url;
     let defaultName = "My_wild_sample001";
     let sampleName = await Modal.show('prompt', "Name your new sample:", defaultName);
-    
+
     if (sampleName) {
       a.download = sampleName.endsWith(".wav") ? sampleName : sampleName + ".wav";
       document.body.appendChild(a);
@@ -1456,5 +1500,21 @@ export default class AudioPlayer {
       btn.innerHTML = originalIcon;
       btn.style.pointerEvents = "auto";
     }
+  }
+
+  drawMeter() {
+    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+    const update = () => {
+      this.analyser.getByteFrequencyData(dataArray);
+      // calculating the mean
+      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      const meterFill = document.getElementById('meter-fill');
+      if (meterFill) {
+        // normalizing width value
+        meterFill.style.width = Math.min(100, (average / 128) * 100) + "%";
+      }
+      requestAnimationFrame(update);
+    };
+    update();
   }
 }

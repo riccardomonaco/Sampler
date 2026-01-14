@@ -353,8 +353,8 @@ body {
   overflow: hidden;
 }
 
-#waveform shadow-root, 
-#waveform > div, 
+#waveform shadow-root,
+#waveform>div,
 #waveform canvas {
   overflow: hidden !important;
 }
@@ -1156,7 +1156,7 @@ body {
 }
 
 .delete-bank-btn {
-  pointer-events: auto; 
+  pointer-events: auto;
   background-color: var(--dgrey);
   color: var(--white);
   font-size: 0.8rem !important;
@@ -1180,7 +1180,7 @@ body {
 /* positioning the info button at the far right */
 .info-wrapper {
   position: relative;
-  top:15px;
+  top: 15px;
   left: -110px;
   z-index: 2000;
 }
@@ -1238,7 +1238,8 @@ body {
 }
 
 /* making icons stand out in the tutorial */
-.info-item i, .info-item span:first-child {
+.info-item i,
+.info-item span:first-child {
   color: var(--color-ambra);
   width: 20px;
   text-align: center;
@@ -1249,4 +1250,88 @@ body {
   border: 0;
   border-top: 1px solid var(--color-ambra);
   margin: 15px 0;
+}
+
+.master-strip {
+  grid-column: 1 / -1;
+  /* Occupa tutta la larghezza sotto il sampler */
+  background: var(--lgrey);
+  margin-top: 50px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 98.7%;
+}
+
+.master-label {
+  margin: 1%;
+  padding: 5px;
+  font-family: "Pixelify Sans", system-ui;
+  font-weight: 400;
+  text-align: center;
+  background-color: var(--dgrey);
+  color: var(--white);
+}
+
+.meter-container {
+  flex-grow: 1;
+  height: 24px;
+  background: var(--black);
+  border: 2px solid var(--dgrey);
+  position: relative;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 8px,
+    rgba(255, 255, 255, 0.05) 4px,
+    rgba(255, 255, 255, 0.05) 12px
+  );
+}
+
+.meter-fill {
+  height: 100%;
+  width: 0%;
+  
+  background: linear-gradient(90deg, 
+    var(--lgrey) 0%, var(--lgrey) 70%, 
+    var(--color-ambra) 70%, var(--color-ambra) 90%, 
+    var(--color-red) 90%, var(--color-red) 100%
+  );
+
+  -webkit-mask-image: repeating-linear-gradient(
+    90deg,
+    black,
+    black 8px,
+    transparent 4px,
+    transparent 12px
+  );
+  mask-image: repeating-linear-gradient(
+    90deg,
+    black,
+    black 8px,
+    transparent 4px,
+    transparent 12px
+  );
+
+  transition: none !important;
+}
+
+.master-fader {
+  -webkit-appearance: none;
+  width: 200px;
+  height: 10px;
+  background: var(--dgrey);
+  outline: none;
+  border: 2px solid var(--black);
+}
+
+.master-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 30px;
+  background: var(--llgrey);
+  border: 3px solid var(--black);
+  cursor: pointer;
+  box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.3);
 }
