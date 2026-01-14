@@ -1289,6 +1289,7 @@ export default class AudioPlayer {
 
     this.setupGlobalDragDrop();
     this.setupBpmInput();
+    this.setupEqDrawing();
   }
 
   /**
@@ -1516,5 +1517,47 @@ export default class AudioPlayer {
       requestAnimationFrame(update);
     };
     update();
+  }
+
+  setupEqDrawing() {
+    const container = document.getElementById("sliders-wrapper");
+    if (!container) return;
+
+    const updateEq = (e) => {
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const bands = container.querySelectorAll('.eq-band');
+      const bandWidth = rect.width / bands.length;
+      const index = Math.floor(x / bandWidth);
+
+      if (index >= 0 && index < bands.length) {
+        const slider = bands[index].querySelector('input');
+        const height = rect.height;
+
+        let val = 12 - (y / height) * 24;
+        val = Math.max(-12, Math.min(12, val));
+
+        slider.value = val;
+
+        if (this.filters && this.filters[index]) {
+          this.filters[index].gain.setTargetAtTime(val, this.audioContext.currentTime, 0.01);
+        }
+      }
+    };
+
+    container.onmousedown = (e) => {
+      this.isDrawingEq = true;
+      updateEq(e);
+    };
+
+    window.onmousemove = (e) => {
+      if (this.isDrawingEq) updateEq(e);
+    };
+
+    window.onmouseup = () => {
+      this.isDrawingEq = false;
+    };
   }
 }

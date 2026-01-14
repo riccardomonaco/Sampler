@@ -389,6 +389,7 @@ export default function createEqualizer() {
     slider.max = 12;
     slider.value = 0;
     slider.step = 0.1;
+    slider.style.pointerEvents = "none";
 
     // quick reset to 0dB
     slider.addEventListener("dblclick", () => {

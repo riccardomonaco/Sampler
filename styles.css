@@ -151,7 +151,7 @@ body {
 
   /* Dimensioni e Posizione */
   width: 100%;
-  height: 575px;
+  height: 670px;
   position: relative;
 
   /* Stile (dalla vecchia sezione 3) */
@@ -171,8 +171,9 @@ body {
   padding: 10px;
   background-color: var(--lgrey);
   width: 210px;
-  height: 545px;
+  height: 645px;
   position: relative;
+  left:-15px;
 }
 
 /* ==========================================================================
@@ -501,11 +502,10 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   grid-auto-rows: min-content;
-  gap: 15px;
   padding: 10px;
   padding-left: 20%;
   align-items: center;
-  gap: 15px;
+  gap: 25px;
   padding: 10px;
   padding-left: 20%;
   box-sizing: border-box;
@@ -1181,7 +1181,7 @@ body {
 .info-wrapper {
   position: relative;
   top: 15px;
-  left: -110px;
+  left: -125px;
   z-index: 2000;
 }
 
@@ -1280,39 +1280,32 @@ body {
   background: var(--black);
   border: 2px solid var(--dgrey);
   position: relative;
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent,
-    transparent 8px,
-    rgba(255, 255, 255, 0.05) 4px,
-    rgba(255, 255, 255, 0.05) 12px
-  );
+  background-image: repeating-linear-gradient(90deg,
+      transparent,
+      transparent 8px,
+      rgba(255, 255, 255, 0.05) 4px,
+      rgba(255, 255, 255, 0.05) 12px);
 }
 
 .meter-fill {
   height: 100%;
   width: 0%;
-  
-  background: linear-gradient(90deg, 
-    var(--lgrey) 0%, var(--lgrey) 70%, 
-    var(--color-ambra) 70%, var(--color-ambra) 90%, 
-    var(--color-red) 90%, var(--color-red) 100%
-  );
 
-  -webkit-mask-image: repeating-linear-gradient(
-    90deg,
-    black,
-    black 8px,
-    transparent 4px,
-    transparent 12px
-  );
-  mask-image: repeating-linear-gradient(
-    90deg,
-    black,
-    black 8px,
-    transparent 4px,
-    transparent 12px
-  );
+  background: linear-gradient(90deg,
+      var(--lgrey) 0%, var(--lgrey) 70%,
+      var(--color-ambra) 70%, var(--color-ambra) 90%,
+      var(--color-red) 90%, var(--color-red) 100%);
+
+  -webkit-mask-image: repeating-linear-gradient(90deg,
+      black,
+      black 8px,
+      transparent 4px,
+      transparent 12px);
+  mask-image: repeating-linear-gradient(90deg,
+      black,
+      black 8px,
+      transparent 4px,
+      transparent 12px);
 
   transition: none !important;
 }
@@ -1334,4 +1327,26 @@ body {
   border: 3px solid var(--black);
   cursor: pointer;
   box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.3);
+}
+
+.sliders-wrapper {
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+  /* Evita che il browser provi a trascinare gli elementi come immagini */
+  -webkit-user-drag: none;
+}
+
+.eq-band,
+.eq-label,
+.slider-eq {
+  /* Impedisce agli elementi figli di rubare il click al contenitore */
+  pointer-events: none !important;
+  user-select: none;
+}
+
+#sliders-wrapper {
+  /* Solo il contenitore deve intercettare il mouse */
+  pointer-events: all !important;
+  cursor: crosshair;
 }
