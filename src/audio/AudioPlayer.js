@@ -1435,7 +1435,10 @@ export default class AudioPlayer {
    */
   async exportAudio() {
     const blob = await this.getProcessedWavBlob();
-    if (!blob) return;
+    if (!blob) {
+      await Modal.show('alert', 'Nothing to download in here!');
+      return;
+    };
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1462,7 +1465,7 @@ export default class AudioPlayer {
     const currentBank = bankSelect ? bankSelect.value : null;
 
     if (!this.originalBuffer) {
-      await Modal.show('alert', "Nessun sample caricato!");
+      await Modal.show('alert', "Watch out, no sample loaded!");
       return;
     }
     if (!currentBank || currentBank === "" || currentBank === "__NEW_BANK__") {

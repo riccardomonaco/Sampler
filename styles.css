@@ -1177,7 +1177,6 @@ body {
   box-shadow: 1px 1px 0px var(--black);
 }
 
-/* positioning the info button at the far right */
 .info-wrapper {
   position: relative;
   top: 15px;
